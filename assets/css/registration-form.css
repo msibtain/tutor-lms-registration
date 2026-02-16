@@ -1,0 +1,108 @@
+/**
+ * Tutor LMS Registration Form Styles
+ */
+
+.tlr-registration-form {
+	max-width: 480px;
+	margin: 1.5em 0;
+	padding: 1.5em;
+	background: #fff;
+	border: 1px solid #e2e4e7;
+	border-radius: 4px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tlr-registration-form .tlr-form-row {
+	margin-bottom: 1.25em;
+}
+
+.tlr-registration-form .tlr-form-row:last-of-type {
+	margin-bottom: 0;
+}
+
+.tlr-registration-form label {
+	display: block;
+	margin-bottom: 0.35em;
+	font-weight: 600;
+	font-size: 0.9em;
+	color: #1d2327;
+}
+
+.tlr-registration-form .required {
+	color: #d63638;
+}
+
+.tlr-registration-form input[type="text"],
+.tlr-registration-form input[type="email"],
+.tlr-registration-form input[type="password"] {
+	width: 100%;
+	max-width: 100%;
+	padding: 0.6em 0.75em;
+	font-size: 1em;
+	line-height: 1.5;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	box-sizing: border-box;
+	transition: border-color 0.2s ease;
+}
+
+.tlr-registration-form input[type="text"]:focus,
+.tlr-registration-form input[type="email"]:focus,
+.tlr-registration-form input[type="password"]:focus {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+	outline: none;
+}
+
+.tlr-registration-form .tlr-submit-row {
+	margin-top: 1.5em;
+}
+
+.tlr-registration-form .tlr-submit-btn {
+	padding: 0.6em 1.25em;
+	font-size: 1em;
+	font-weight: 600;
+	color: #fff;
+	background: #2271b1;
+	border: 1px solid #2271b1;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.tlr-registration-form .tlr-submit-btn:hover {
+	background: #135e96;
+	border-color: #135e96;
+	color: #fff;
+}
+
+.tlr-registration-form .tlr-submit-btn:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* Messages */
+.tlr-message {
+	padding: 0.85em 1em;
+	margin-bottom: 1em;
+	border-radius: 4px;
+	border-left: 4px solid;
+}
+
+.tlr-message.tlr-success {
+	background: #edfaef;
+	border-color: #00a32a;
+	color: #1e4620;
+}
+
+.tlr-message.tlr-error {
+	background: #fcf0f1;
+	border-color: #d63638;
+	color: #3c434a;
+}
+
+.tlr-message.tlr-info {
+	background: #f0f6fc;
+	border-color: #2271b1;
+	color: #1d2327;
+}

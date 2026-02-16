@@ -1,0 +1,1 @@
+(()=>{var t={};jQuery(document).ready((function(t){t("#tutor_pro_instructor_amount_type_field").change((function(){var r=t(this).val();var o=r=="default"?"hide":"show";t("#tutor_pro_instructor_amount_field")[o]()})).trigger("change")}))})();
