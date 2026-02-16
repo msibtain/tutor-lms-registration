@@ -301,6 +301,7 @@ class Tutor_LMS_Registration {
 			// Mark user as pending instructor so they appear in wp-admin → Tutor LMS → Instructor list (Pending tab).
 			// Admin must approve to grant the instructor role and _tutor_instructor_approved.
 			update_user_meta( $user_id, '_tutor_instructor_status', 'pending' );
+			update_user_meta( $user_id, '_is_tutor_instructor', tutor_time() );
 			do_action( 'tlr_after_instructor_registration', $user_id );
 		} else {
 			// Student registration: subscriber only, no instructor meta.
