@@ -3,7 +3,7 @@
  * Plugin Name: Tutor LMS Registration
  * Plugin URI: https://github.com/your-repo/tutor-lms-registration
  * Description: Custom user registration shortcode that creates WordPress users with Subscriber role and Tutor LMS Instructor capabilities.
- * Version: 1.0.0
+ * Version: 1.2.0
  * Author: Sib
  * Author URI: https://innovisionlab.com
  * License: GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'TLR_VERSION', '1.0.0' );
+define( 'TLR_VERSION', '1.2.0' );
 define( 'TLR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TLR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -97,13 +97,7 @@ class Tutor_LMS_Registration {
 		}
 
 		if ( isset( $_GET['tlr_error'] ) ) {
-			$error_code = sanitize_text_field( wp_unslash( $_GET['tlr_error'] ) );
-			$messages   = $this->get_error_messages();
-			$message    = isset( $messages[ $error_code ] ) ? $messages[ $error_code ] : $messages['generic'];
-			$output    .= sprintf(
-				'<p class="tlr-message tlr-error">%s</p>',
-				esc_html( $message )
-			);
+			$output .= $this->get_error_message_html( sanitize_text_field( wp_unslash( $_GET['tlr_error'] ) ) );
 		}
 
 		$output .= $this->get_registration_form_html( 'instructor' );
@@ -141,13 +135,7 @@ class Tutor_LMS_Registration {
 		}
 
 		if ( isset( $_GET['tlr_error'] ) ) {
-			$error_code = sanitize_text_field( wp_unslash( $_GET['tlr_error'] ) );
-			$messages   = $this->get_error_messages();
-			$message    = isset( $messages[ $error_code ] ) ? $messages[ $error_code ] : $messages['generic'];
-			$output    .= sprintf(
-				'<p class="tlr-message tlr-error">%s</p>',
-				esc_html( $message )
-			);
+			$output .= $this->get_error_message_html( sanitize_text_field( wp_unslash( $_GET['tlr_error'] ) ) );
 		}
 
 		$output .= $this->get_registration_form_html( 'student' );
@@ -168,9 +156,15 @@ class Tutor_LMS_Registration {
 		$nonce_name = $is_student ? 'tlr_register_student_nonce' : 'tlr_register_nonce';
 		$submit_name = $is_student ? 'tlr_register_student' : 'tlr_register';
 
+		$return_url = get_permalink();
+		if ( ! is_string( $return_url ) || $return_url === '' ) {
+			$return_url = home_url( '/' );
+		}
+
 		return '
 		<form method="post" action="" class="tlr-registration-form" id="' . esc_attr( $form_id ) . '">
 			' . wp_nonce_field( $nonce, $nonce_name, true, false ) . '
+			<input type="hidden" name="tlr_return_url" value="' . esc_url( $return_url ) . '" />
 			<p class="tlr-form-row">
 				<label for="tlr_first_name">' . esc_html__( 'First Name', 'tutor-lms-registration' ) . ' <span class="required">*</span></label>
 				<input type="text" name="tlr_first_name" id="tlr_first_name" required value="' . esc_attr( $this->get_posted_value( 'tlr_first_name' ) ) . '" />
@@ -191,6 +185,10 @@ class Tutor_LMS_Registration {
 				<label for="tlr_password">' . esc_html__( 'Password', 'tutor-lms-registration' ) . ' <span class="required">*</span></label>
 				<input type="password" name="tlr_password" id="tlr_password" required autocomplete="new-password" />
 			</p>
+			<p class="tlr-form-row">
+				<label for="tlr_password_confirm">' . esc_html__( 'Confirm Password', 'tutor-lms-registration' ) . ' <span class="required">*</span></label>
+				<input type="password" name="tlr_password_confirm" id="tlr_password_confirm" required autocomplete="new-password" />
+			</p>
 			<p class="tlr-form-row tlr-submit-row">
 				<button type="submit" name="' . esc_attr( $submit_name ) . '" class="tlr-submit-btn">' . esc_html__( 'Register', 'tutor-lms-registration' ) . '</button>
 			</p>
@@ -208,6 +206,42 @@ class Tutor_LMS_Registration {
 	}
 
 	/**
+	 * Get the URL to redirect to on error (registration page).
+	 *
+	 * @return string
+	 */
+	private function get_error_redirect_url() {
+		$default = wp_get_referer();
+		if ( empty( $default ) ) {
+			$default = home_url( '/' );
+		}
+		if ( ! empty( $_POST['tlr_return_url'] ) ) {
+			$submitted = esc_url_raw( wp_unslash( $_POST['tlr_return_url'] ) );
+			$validated = wp_validate_redirect( $submitted, false );
+			if ( $validated ) {
+				return $validated;
+			}
+		}
+		return $default;
+	}
+
+	/**
+	 * Output HTML for an error message (styled box with title).
+	 *
+	 * @param string $error_code Key from get_error_messages().
+	 * @return string
+	 */
+	private function get_error_message_html( $error_code ) {
+		$messages = $this->get_error_messages();
+		$message  = isset( $messages[ $error_code ] ) ? $messages[ $error_code ] : $messages['generic'];
+		$title    = __( 'Registration error', 'tutor-lms-registration' );
+		return '<div class="tlr-message tlr-error tlr-error-box" role="alert" aria-live="polite">' .
+			'<span class="tlr-error-title">' . esc_html( $title ) . '</span> ' .
+			'<span class="tlr-error-text">' . esc_html( $message ) . '</span>' .
+			'</div>';
+	}
+
+	/**
 	 * Get error messages.
 	 *
 	 * @return array
@@ -218,6 +252,7 @@ class Tutor_LMS_Registration {
 			'username'      => __( 'Invalid username. Please choose another.', 'tutor-lms-registration' ),
 			'email'         => __( 'Invalid or duplicate email address.', 'tutor-lms-registration' ),
 			'password'      => __( 'Password is too short. Please use at least 6 characters.', 'tutor-lms-registration' ),
+			'password_mismatch' => __( 'Passwords do not match. Please try again.', 'tutor-lms-registration' ),
 			'generic'       => __( 'Registration failed. Please try again.', 'tutor-lms-registration' ),
 			'tutor_inactive' => __( 'Tutor LMS is not active. Registration is unavailable.', 'tutor-lms-registration' ),
 		);
@@ -234,22 +269,24 @@ class Tutor_LMS_Registration {
 			return;
 		}
 
+		$registration_page_url = $this->get_error_redirect_url();
+
 		if ( $is_student ) {
 			$nonce_value = isset( $_POST['tlr_register_student_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['tlr_register_student_nonce'] ) ) : '';
 			if ( ! wp_verify_nonce( $nonce_value, 'tlr_register_student' ) ) {
-				wp_safe_redirect( add_query_arg( 'tlr_error', 'nonce', wp_get_referer() ?: home_url( '/' ) ) );
+				wp_safe_redirect( add_query_arg( 'tlr_error', 'nonce', $registration_page_url ) );
 				exit;
 			}
 		} else {
 			$nonce_value = isset( $_POST['tlr_register_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['tlr_register_nonce'] ) ) : '';
 			if ( ! wp_verify_nonce( $nonce_value, 'tlr_register' ) ) {
-				wp_safe_redirect( add_query_arg( 'tlr_error', 'nonce', wp_get_referer() ?: home_url( '/' ) ) );
+				wp_safe_redirect( add_query_arg( 'tlr_error', 'nonce', $registration_page_url ) );
 				exit;
 			}
 		}
 
 		if ( ! $this->is_tutor_active() ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'tutor_inactive', wp_get_referer() ?: home_url( '/' ) ) );
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'tutor_inactive', $registration_page_url ) );
 			exit;
 		}
 
@@ -257,26 +294,32 @@ class Tutor_LMS_Registration {
 		$last_name  = isset( $_POST['tlr_last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['tlr_last_name'] ) ) : '';
 		$username   = isset( $_POST['tlr_username'] ) ? sanitize_user( wp_unslash( $_POST['tlr_username'] ), true ) : '';
 		$email      = isset( $_POST['tlr_email'] ) ? sanitize_email( wp_unslash( $_POST['tlr_email'] ) ) : '';
-		$password   = isset( $_POST['tlr_password'] ) ? $_POST['tlr_password'] : '';
+		$password         = isset( $_POST['tlr_password'] ) ? $_POST['tlr_password'] : '';
+		$password_confirm = isset( $_POST['tlr_password_confirm'] ) ? $_POST['tlr_password_confirm'] : '';
 
 		// Validation.
-		if ( empty( $first_name ) || empty( $last_name ) || empty( $username ) || empty( $email ) || empty( $password ) ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'generic', wp_get_referer() ?: home_url( '/' ) ) );
+		if ( empty( $first_name ) || empty( $last_name ) || empty( $username ) || empty( $email ) || empty( $password ) || empty( $password_confirm ) ) {
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'generic', $registration_page_url ) );
 			exit;
 		}
 
 		if ( ! validate_username( $username ) || username_exists( $username ) ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'username', wp_get_referer() ?: home_url( '/' ) ) );
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'username', $registration_page_url ) );
 			exit;
 		}
 
 		if ( ! is_email( $email ) || email_exists( $email ) ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'email', wp_get_referer() ?: home_url( '/' ) ) );
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'email', $registration_page_url ) );
 			exit;
 		}
 
 		if ( strlen( $password ) < 6 ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'password', wp_get_referer() ?: home_url( '/' ) ) );
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'password', $registration_page_url ) );
+			exit;
+		}
+
+		if ( $password !== $password_confirm ) {
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'password_mismatch', $registration_page_url ) );
 			exit;
 		}
 
@@ -293,7 +336,7 @@ class Tutor_LMS_Registration {
 		);
 
 		if ( is_wp_error( $user_id ) ) {
-			wp_safe_redirect( add_query_arg( 'tlr_error', 'generic', wp_get_referer() ?: home_url( '/' ) ) );
+			wp_safe_redirect( add_query_arg( 'tlr_error', 'generic', $registration_page_url ) );
 			exit;
 		}
 
@@ -312,7 +355,7 @@ class Tutor_LMS_Registration {
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id, true );
 
-		$redirect_url = remove_query_arg( array( 'tlr_error', 'tlr_registered' ), wp_get_referer() ?: get_permalink( 394 ) );
+		$redirect_url = remove_query_arg( array( 'tlr_error', 'tlr_registered' ), get_permalink( 394 ) );
 		wp_safe_redirect( add_query_arg( 'tlr_registered', '1', $redirect_url ) );
 		exit;
 	}
