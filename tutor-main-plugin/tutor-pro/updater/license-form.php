@@ -8,129 +8,204 @@
  * @since 1.0.0
  */
 
+use TutorPRO\ThemeumUpdater\Update;
+
+$value       = '';
+$license_key = '';
+
+$license_activated    = '';
+$license_to           = '';
+$license_type         = '';
+$license_expires_at   = '';
+$license_activated_at = '';
+
+$license_updater = new Update();
+$license         = $license_updater->get_license();
+
+if ( $license ) {
+	$value                = $license['license_key'] ?? '';
+	$license_key          = preg_replace( '/[^\-]/i', '*', $value );
+	$last_dash_index      = strrpos( $license_key, '-' );
+	$license_key          = substr( $license_key, 0, $last_dash_index ) . substr( $value, $last_dash_index );
+	$license_activated    = $license['activated'];
+	$license_to           = isset( $license['customer_name'] ) ? $license['customer_name'] : $license['license_to'] ?? '';
+	$license_type         = $license['license_type'] ?? '';
+	$license_expires_at   = $license['expires_at'] ?? '';
+	$license_activated_at = $license['activated_at'] ?? '';
+}
+
 ?>
-<div class="themeum-license-window">
-	<div class="themeum-license-card">
-		<div class="themeum-license-brand">
-			<?php
-				echo strpos( $header_content, 'http' ) === 0 ? '<img src="' . $header_content . '"/>' : $header_content; //phpcs:ignore --it is tutor svg icon.
-			?>
+<div class="tutor-license-page-wrapper tutor-d-flex tutor-flex-column">
+
+	<div class="tutor-option-main-title">
+		<div class="tutor-fs-4 tutor-fw-medium tutor-color-black" tutor-option-title="<?php esc_attr_e( 'License', 'tutor-pro' ); ?>">
+			<?php esc_html_e( 'License', 'tutor-pro' ); ?>
 		</div>
-
-		<?php if ( null !== $license ) : ?>
-			<?php if ( true === (bool) $license['activated'] ) : ?>
-				<div class="themeum-license-alert-success">
-					<div class="themeum-license-alert-icon">
-						<svg width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><defs/><path fill-rule="evenodd" clip-rule="evenodd" d="M24 41c9.389 0 17-7.611 17-17S33.389 7 24 7 7 14.611 7 24s7.611 17 17 17zm-8.434-16.145a.928.928 0 00.19.29l6.023 6c.08.093.178.168.288.22a.97.97 0 00.74 0 .852.852 0 00.29-.22l10.666-10.61a.928.928 0 00.189-.289 1.066 1.066 0 000-.74.887.887 0 00-.19-.289l-1.34-1.303a.842.842 0 00-.629-.289.906.906 0 00-.37.074.975.975 0 00-.3.215l-8.678 8.678-4.043-4.05a.985.985 0 00-.307-.215.878.878 0 00-.71 0 .806.806 0 00-.29.215l-1.34 1.284a.89.89 0 00-.189.29 1.067 1.067 0 000 .74z" fill="#24A148"/></svg>
-					</div>
-					<div class="themeum-license-alert-title">
-						<?php esc_html_e( 'Congratulation', 'tutor-pro' ); ?>
-					</div>
-					<div class="themeum-license-alert-message">
-						<?php
-						/* translators: %s: product title */
-						echo esc_html( sprintf( __( 'Your %s is connected to the Tutor LMS license system and will now receive automatic updates', 'tutor-pro' ), $product_title ) );
-						?>
-
-					</div>
-				</div>
-			<?php else : ?>
-				<div class="themeum-license-alert-error">
-					<div class="themeum-license-alert-icon">
-						<svg width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><defs/><path fill-rule="evenodd" clip-rule="evenodd" d="M24 41c9.389 0 17-7.611 17-17S33.389 7 24 7 7 14.611 7 24s7.611 17 17 17zm8.465-11.118c.002-.2-.032-.4-.1-.588a1.475 1.475 0 00-.324-.484l-4.819-4.812 4.837-4.808a1.492 1.492 0 00.44-1.072 1.607 1.607 0 00-.44-1.12l-1.07-1.073c-.15-.14-.326-.25-.518-.324a1.735 1.735 0 00-1.17 0 1.44 1.44 0 00-.484.324l-4.801 4.829-4.82-4.83a1.39 1.39 0 00-.49-.323 1.735 1.735 0 00-1.17 0 1.619 1.619 0 00-.51.324l-1.067 1.072c-.144.15-.254.33-.323.526-.067.191-.101.392-.101.595-.002.2.032.398.1.585.073.184.183.35.324.487l4.784 4.808-4.802 4.812a1.494 1.494 0 00-.441 1.072c0 .201.038.4.111.588.075.198.187.379.33.533l1.07 1.072c.149.14.324.25.515.324.188.067.387.101.587.1.199.003.397-.031.583-.1.183-.074.348-.184.487-.324l4.798-4.846 4.819 4.84c.14.14.308.251.493.323.185.067.38.102.577.1.202.002.403-.032.594-.1.188-.074.36-.184.507-.324l1.07-1.072c.142-.152.252-.33.323-.526.066-.19.1-.388.101-.588z" fill="#F44337"/></svg>
-					</div>
-					<div class="themeum-license-alert-title">
-						<?php esc_html_e( 'Valid Key Required', 'tutor-pro' ); ?>
-					</div>
-					<div class="themeum-license-alert-message">
-						<?php
-						/* translators: %s: product title */
-						echo esc_html( sprintf( __( 'The license key you entered is invalid. If you have purchased Tutor LMS Pro, you can retrieve your license key from the Tutor LMS website.', 'tutor-pro' ), $product_title ) );
-						?>
-					</div>
-				</div>
-			<?php endif; ?>
-
-			<?php if ( null !== $license && $license['activated'] ) : ?>
-				<div class="themeum-license-fieldset">
-					<div class="themeum-license-fieldset-label">
-						<?php esc_html_e( 'Licensed To:', 'tutor-pro' ); ?>
-					</div>
-					<div class="themeum-license-fieldset-content">
-						<?php echo esc_html( $license['license_to'] ); ?>
-					</div>
-				</div>
-
-				<?php if ( $license['license_type'] ) : ?>
-					<div class="themeum-license-fieldset">
-						<div class="themeum-license-fieldset-label">
-							<?php esc_html_e( 'License Type:', 'tutor-pro' ); ?>
-						</div>
-						<div class="themeum-license-fieldset-content">
-							<?php echo esc_html( ucwords( $license['license_type'] ) ); ?>
-						</div>
-					</div>
-				<?php endif; ?>
-
-				<div class="themeum-license-fieldset">
-					<div class="themeum-license-fieldset-label">
-						<?php esc_html_e( 'Expires on:', 'tutor-pro' ); ?>
-					</div>
-					<div class="themeum-license-fieldset-content">
-						<?php echo ! $license['expires_at'] ? 'Never' : esc_html( $license['expires_at'] ); ?>
-					</div>
-				</div>
-
-			<?php endif; ?>
-		<?php endif; ?>
-
-		<?php
-		$class_name = $license ? ( $license['activated'] ? 'themeum-license-is-valid' : 'themeum-license-is-invalid' ) : '';
-		$value      = '';
-
-		if ( $license ) {
-			if ( $license['activated'] ) {
-				$license_key     = preg_replace( '/[^\-]/i', '*', $license['license_key'] );
-				$last_dash_index = strrpos( $license_key, '-' );
-				$value           = substr( $license_key, 0, $last_dash_index ) . substr( $license['license_key'], $last_dash_index );
-			} else {
-				$value = $license['license_key'];
-			}
-		}
-		?>
-		<form method="post" id="themeum-license-key-form">
-			<div class="themeum-license-fieldset">
-				<div class="themeum-license-fieldset-content">
-					<?php wp_nonce_field( $nonce_field_name ); ?>
-					<input name="<?php echo esc_attr( $field_name ); ?>" type="text" placeholder="Enter your license key here" value="<?php echo esc_attr( $value ); ?>" class="<?php echo esc_attr( $class_name ); ?>">
-					<div class="themeum-license-help-text">
-						<?php
-						/* translators: %s: product title */
-						echo esc_html( sprintf( __( 'If you have already purchased a %s license, please paste your code here.', 'tutor-pro' ), $product_title ) );
-						?>
-
-						<a href="https://tutorlms.com/account/subscriptions/licenses"><?php esc_html_e( 'Get the license key', 'tutor-pro' ); ?></a>
-					</div>
-				</div>
-			</div>
-
-			<div class="themeum-license-actions">
-				<button type class="button button-primary"><?php esc_html_e( 'Connect With License Key', 'tutor-pro' ); ?></button>
-			</div>
-		</form>
 	</div>
+
+	<div>
+		<?php if ( is_null( $license ) ) : ?>
+		<div class="tutor-license-card tutor-license-empty-card">
+			<div class="tutor-row">
+				<div class="tutor-col-sm-5">
+					<div>
+						<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/key.svg' ); ?>" alt="">
+						<h6 class="tutor-fs-4 tutor-color-black tutor-mb-8 tutor-mt-32"><?php esc_html_e( 'Verify License', 'tutor-pro' ); ?></h6>
+						<p class="tutor-fs-6 tutor-color-subdued tutor-m-0"><?php esc_html_e( 'to use Tutor LMS Pro', 'tutor-pro' ); ?></p>
+					</div>
+				</div>
+				<div class="tutor-col-sm-7">
+					<div class="tutor-verify-license-wrapper">
+						<div class="tutor-form-group">
+							<label class="tutor-d-block tutor-fs-7 tutor-color-secondary tutor-mb-4">
+								<?php esc_html_e( 'License Key', 'tutor-pro' ); ?>
+							</label>
+							<input type="text" class="tutor-form-control">
+							<div class="tutor-fs-7 tutor-color-secondary tutor-mt-12">
+								<?php
+								printf(
+									// Translators: %s will be replaced with a link to get the license key.
+									esc_html__( 'If you\'ve already purchased a Tutor LMS Pro license, please paste your code here. %s', 'tutor-pro' ),
+									'<a href="https://tutorlms.com/account/subscriptions/licenses" target="_blank">' . esc_html__( 'Get the license key', 'tutor-pro' ) . '</a>'
+								);
+								?>
+							</div>
+						</div>
+						<div class="tutor-text-right">
+							<button id="tutor-license-submit-btn" class="tutor-btn tutor-btn-primary tutor-text-color-white">
+								<?php esc_html_e( 'Verify License', 'tutor-pro' ); ?>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<?php else : ?>
+		<div class="tutor-license-card tutor-license-active-card">
+			<div class="tutor-d-flex tutor-align-center tutor-justify-between tutor-flex-column tutor-flex-sm-row tutor-gap-2 tutor-mb-40">
+				<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/key.svg' ); ?>" alt="">
+
+				<?php if ( true === (bool) $license_activated ) : ?>
+				<div class="tutor-license-status tutor-license-active">
+					<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/checked-filled.svg' ); ?>" alt="">
+					<?php esc_html_e( 'License is activated', 'tutor-pro' ); ?>
+				</div>
+				<?php else : ?>
+				<div class="tutor-license-status tutor-license-expired">
+					<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/clock-fill.svg' ); ?>" alt="">
+					<?php esc_html_e( 'License is inactive', 'tutor-pro' ); ?>
+				</div>
+				<?php endif; ?>
+			</div>
+
+			<div class="tutor-license-info">
+				<div class="tutor-license-info-item">
+					<div class="tutor-license-info-item-label">
+						<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/handshake-outline.svg' ); ?>" alt="">
+						<?php esc_html_e( 'Licensed to', 'tutor-pro' ); ?>
+					</div>
+					<div class="tutor-license-info-item-value">
+						<?php echo esc_html( $license_to ); ?>
+					</div>
+				</div>
+				<div class="tutor-license-info-item">
+					<div class="tutor-license-info-item-label">
+						<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/google-doc.svg' ); ?>" alt="">
+						<?php esc_html_e( 'License Type', 'tutor-pro' ); ?>
+					</div>
+					<div class="tutor-license-info-item-value">
+						<?php echo esc_html( ucwords( $license_type ) ); ?>
+					</div>
+				</div>
+				<div class="tutor-license-info-item">
+					<div class="tutor-license-info-item-label">
+						<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/clock-light.svg' ); ?>" alt="">
+						<?php esc_html_e( 'Expiration Date', 'tutor-pro' ); ?>
+					</div>
+					<div class="tutor-license-info-item-value">
+						<?php echo ! $license_expires_at ? 'Never' : esc_html( mysql2date( 'M d, Y', $license_expires_at ) ); ?>
+					</div>
+				</div>
+			</div>
+
+			<div class="tutor-license-key-wrapper">
+				<div style="align-self: center;">
+					<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/key-outline.svg' ); ?>" alt="Key icon">
+				</div>
+				<div class="tutor-license-key-content">
+					<h6 class="tutor-fs-6 tutor-color-black tutor-m-0"><?php esc_html_e( 'License Key', 'tutor-pro' ); ?></h6>
+					<div class="tutor-fs-6 tutor-color-subdued"><?php echo esc_html( $license_key ); ?></div>
+					<div class="tutor-fs-7 tutor-color-hints">Added on <?php echo esc_html( mysql2date( 'M d, Y', $license_activated_at ) ); ?></div>
+				</div>
+				<div class="tutor-license-key-buttons">
+					<button id="tutor-license-delete-button" class="tutor-btn tutor-color-danger" data-tutor-modal-target="tutor-license-remove-confirm-popup">
+						<?php esc_html_e( 'Remove', 'tutor-pro' ); ?>
+					</button>
+					<button id="tutor-license-edit-button" class="tutor-btn tutor-btn-primary">
+						<?php esc_html_e( 'Edit', 'tutor-pro' ); ?>
+					</button>
+				</div>
+			</div>
+
+			<div class="tutor-license-key-form-wrapper tutor-mt-12 tutor-d-none">
+				<div class="tutor-license-key-icon">
+					<img src="<?php echo esc_url( tutor_pro()->assets . 'images/icons/key-outline.svg' ); ?>" alt="Key icon">
+				</div>
+				<div id="tutor-license-key-form" class="tutor-license-update-form">
+					<div class="tutor-license-key-content">
+						<h6 class="tutor-fs-6 tutor-color-black tutor-m-0"><?php esc_html_e( 'License Key', 'tutor-pro' ); ?></h6>
+						<input id="update-input-tutor-pro-license-key" type="text" value="<?php echo esc_attr( $value ); ?>" class="tutor-form-control">
+					</div>
+					<div class="tutor-license-key-buttons">
+						<button type="button" id="tutor-license-edit-cancel-button" class="tutor-btn tutor-color-subdued">
+							<?php esc_html_e( 'Cancel', 'tutor-pro' ); ?>
+						</button>
+						<button id="tutor-license-update-button" class="tutor-btn tutor-btn-primary">
+							<?php esc_html_e( 'Update', 'tutor-pro' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<?php if ( true !== (bool) $license_activated ) : ?>
+				<p class="tutor-color-secondary tutor-mt-12 tutor-mb-0" style="font-size: 13px; max-width: 400px;">
+					<?php
+					printf(
+						// Translators: %s will be replaced with a link to get the license key.
+						esc_html__( 'If you have already purchased a Tutor Pro license, please paste your code here. %s', 'tutor-pro' ),
+						'<a href="https://tutorlms.com/account/subscriptions/licenses" target="_blank">' . esc_html__( 'Get the license key', 'tutor-pro' ) . '</a>'
+					);
+					?>
+				</p>
+			<?php endif; ?>
+		</div>
+		<?php endif; ?>
+	</div>
+
 </div>
 
-<script>
-	window.jQuery(document).ready(function($) {
-		$('#themeum-license-key-form').submit(function(e) {
+<div class="tutor-modal" id="tutor-license-remove-confirm-popup" role="dialog" aria-modal="true" aria-labelledby="tutor-license-remove-title" aria-hidden="true">
+	<div class="tutor-modal-overlay"></div>
+	<div class="tutor-modal-window">
+		<div class="tutor-modal-content tutor-modal-content-white">
+			<button type="button" class="tutor-iconic-btn tutor-modal-close-o" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+				<span class="tutor-icon-times" aria-hidden="true"></span>
+			</button>
 
-			var val = $(this).find('input[type="text"]').val();
-
-			if(!val || !val.trim().length || val.indexOf('*')>-1) {
-				alert('Please enter valid license key');
-				e.preventDefault();
-			}
-		});
-	});
-</script>
+			<div class="tutor-modal-body tutor-text-center">
+				<div style="max-width:460px; margin: 44px auto;">
+					<div id="tutor-license-remove-title" class="tutor-fs-4 tutor-fw-medium tutor-color-black tutor-mb-12"><?php esc_html_e( 'Remove the License?', 'tutor-pro' ); ?></div>
+					<div class="tutor-fs-6 tutor-color-muted"><?php esc_html_e( 'Removing the license will deactivate premium features of Tutor LMS. This action cannot be undone.', 'tutor-pro' ); ?></div>
+					<div class="tutor-d-flex tutor-justify-center tutor-mt-28">
+						<button class="tutor-btn tutor-color-secondary" data-tutor-modal-close>
+							<?php esc_html_e( 'Cancel', 'tutor-pro' ); ?>
+						</button>
+						<button id="tutor-license-remove-action" class="tutor-btn tutor-btn-danger tutor-ml-16" data-tutor-modal-submit>
+							<?php esc_html_e( 'Remove License', 'tutor-pro' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

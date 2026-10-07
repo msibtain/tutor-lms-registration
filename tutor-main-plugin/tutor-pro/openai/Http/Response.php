@@ -137,9 +137,53 @@ class Response {
 
 		$data = $response['data'] ?? array();
 
-		if ( ! empty( $data->data ) ) {
+		if ( ! empty( $data->data ) && is_iterable( $data->data ) ) {
 			foreach ( $data->data as &$item ) {
-				$item->b64_json = 'data:image/png;base64,' . $item->b64_json;
+				$b64 = '';
+				$url = '';
+
+				if ( is_object( $item ) ) {
+					$b64 = ! empty( $item->b64_json ) ? (string) $item->b64_json : '';
+					$url = ! empty( $item->url ) ? (string) $item->url : '';
+				} elseif ( is_array( $item ) ) {
+					$b64 = ! empty( $item['b64_json'] ) ? (string) $item['b64_json'] : '';
+					$url = ! empty( $item['url'] ) ? (string) $item['url'] : '';
+				}
+
+				// Clean up empty data URI prefix if present.
+				if ( 'data:image/png;base64,' === $b64 ) {
+					$b64 = '';
+				}
+
+				// If b64 is missing but remote URL exists, download and convert to data URI.
+				if ( empty( $b64 ) && ! empty( $url ) && preg_match( '/^https?:\/\//i', $url ) ) {
+					$remote_img = wp_remote_get( $url, array( 'timeout' => 60 ) );
+					if ( ! is_wp_error( $remote_img ) ) {
+						$body = wp_remote_retrieve_body( $remote_img );
+						$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+						if ( ! empty( $body ) ) {
+							$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+						}
+					}
+				}
+
+				// Ensure b64 is in data URI format.
+				if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+					$b64 = 'data:image/png;base64,' . $b64;
+				}
+
+				// If url is missing but b64 data URI is available, fallback url to b64.
+				if ( empty( $url ) && ! empty( $b64 ) ) {
+					$url = $b64;
+				}
+
+				if ( is_object( $item ) ) {
+					$item->b64_json = $b64;
+					$item->url      = $url;
+				} elseif ( is_array( $item ) ) {
+					$item['b64_json'] = $b64;
+					$item['url']      = $url;
+				}
 			}
 
 			unset( $item );

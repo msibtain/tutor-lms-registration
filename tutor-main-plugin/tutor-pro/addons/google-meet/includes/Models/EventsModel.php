@@ -64,13 +64,15 @@ class EventsModel {
 	public static function get( string $context, array $sorting_args, array $paging_args, $only_course_meeting = false ): array {
 		global $wpdb;
 
-		$context     = $context;
-		$course_id   = $sorting_args['course_id'];
-		$search_term = $sorting_args['search_term'];
-		$author_id   = $sorting_args['author_id'];
-		$date        = $sorting_args['date'];
-		$limit       = $paging_args['limit'];
-		$offset      = $paging_args['offset'];
+		$context            = $context;
+		$course_id          = $sorting_args['course_id'];
+		$search_term        = $sorting_args['search_term'];
+		$author_id          = $sorting_args['author_id'];
+		$date               = $sorting_args['date'];
+		$order              = $sorting_args['order'] ?? 'ASC';
+		$limit              = $paging_args['limit'];
+		$offset             = $paging_args['offset'];
+		$meeting_parent_ids = $sorting_args['post_parent'] ?? null;
 
 		$course_type = tutor()->course_post_type;
 		$topic_type  = tutor()->topics_post_type;
@@ -83,7 +85,7 @@ class EventsModel {
 		}
 
 		$course_clause = '';
-		if ( '' !== $course_id ) {
+		if ( $course_id ) {
 			if ( $only_course_meeting ) {
 				$course_clause = "AND course.ID = $course_id";
 			} else {
@@ -104,7 +106,15 @@ class EventsModel {
 			$date_clause = "AND ( DATE(start_date.meta_value) = CAST( '$date' AS DATE ) OR DATE(end_date.meta_value) = CAST( '$date' AS DATE ) )";
 		}
 
-		// Get the meetings from Database
+		$order_clause = "ORDER BY end_date.meta_value {$order}";
+
+		$post_parent_clause = '';
+		if ( $meeting_parent_ids ) {
+			$prepare_in_clause  = QueryHelper::prepare_in_clause( is_array( $meeting_parent_ids ) ? $meeting_parent_ids : array( $meeting_parent_ids ) );
+			$post_parent_clause = "AND meeting.post_parent IN ($prepare_in_clause)";
+		}
+
+		// Get the meetings from Database.
 		$meetings    = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT
@@ -148,8 +158,9 @@ class EventsModel {
 					{$course_clause}
 					{$date_clause}
 					{$search_clause}
+					{$post_parent_clause}
 
-				ORDER BY end_date.meta_value ASC
+				{$order_clause}
 
 				LIMIT %d, %d
 				",
@@ -183,6 +194,7 @@ class EventsModel {
 					{$course_clause}
 					{$date_clause}
 					{$search_clause}
+					{$post_parent_clause}
 				",
 				1,
 				$search_term,

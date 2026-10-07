@@ -48,7 +48,7 @@ if ( ! $google_client->is_app_permitted() ) {
 	<!-- navbar end -->
 
 	<!-- sub-page  -->
-	<div class="tutor-admin-body">
+	<div>
 	<?php
 	// Load page template.
 	$plugin_data = GoogleMeet::meta_data();

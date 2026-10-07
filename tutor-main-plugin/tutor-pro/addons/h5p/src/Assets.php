@@ -30,8 +30,8 @@ class Assets {
 		add_action( 'wp_enqueue_scripts', array( $this, 'h5p_scripts' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
 		add_action( 'h5p_alter_library_scripts', array( $this, 'add_h5p_iframe_script' ), 10, 3 );
-		add_action( 'tutor_lesson/single/before/wrap', array( $this, 'add_lesson_script' ) );
-		add_action( 'tutor_quiz/body/before', array( $this, 'add_quiz_script' ), 10, 1 );
+		add_action( 'tutor_lesson/single/before/content', array( $this, 'add_lesson_script' ) );
+		add_action( 'tutor_quiz/body/before', array( $this, 'add_quiz_script' ), 10, 2 );
 	}
 
 	/**
@@ -42,6 +42,18 @@ class Assets {
 	 * @return void
 	 */
 	public function add_lesson_script() {
+		$post = get_post( get_the_ID() );
+
+		if ( ! $post ) {
+			return;
+		}
+
+		$post_content = $post->post_content;
+
+		$has_h5p_shortcode = Utils::get_h5p_shortcodes( $post_content );
+		if ( count( $has_h5p_shortcode ) <= 0 ) {
+			return;
+		}
 		wp_enqueue_script(
 			'tutor_h5p_lesson',
 			Utils::addon_config()->url . 'assets/js/lesson.js',
@@ -55,11 +67,17 @@ class Assets {
 	 * Add script to handle h5p quiz xAPI statement.
 	 *
 	 * @since 3.0.0
+	 * @since 4.0.0 param $quiz_attempt_info added.
 	 *
-	 * @param int $quiz_id the quiz id.
+	 * @param int   $quiz_id the quiz id.
+	 * @param array $quiz_attempt_info attempt info.
+	 *
 	 * @return void
 	 */
-	public function add_quiz_script( $quiz_id ) {
+	public function add_quiz_script( $quiz_id, $quiz_attempt_info = array() ) {
+		if ( ! isset( $quiz_attempt_info['quiz_type'] ) || 'tutor_h5p_quiz' !== $quiz_attempt_info['quiz_type'] ) {
+			return;
+		}
 		if ( tutor_utils()->is_started_quiz() ) {
 			wp_enqueue_script(
 				'tutor_h5p_quiz',
@@ -88,17 +106,19 @@ class Assets {
 
 		if ( isset( $_GET['page'] ) && 'tutor_h5p' === $_GET['page'] ) {
 			wp_enqueue_script(
-				'tutor-pro-line-chart',
-				Utils::addon_config()->url . 'assets/js/lib/Chart.bundle.min.js',
+				'tutor-pro-chart-js',
+				tutor_pro()->url . 'assets/lib/Chart.bundle.min.js',
 				array(),
-				TUTOR_PRO_VERSION
+				TUTOR_PRO_VERSION,
+				true
 			);
 
 			wp_enqueue_script(
 				'tutor-pro-analytics',
 				Utils::addon_config()->url . 'assets/js/analytics.js',
-				array(),
-				TUTOR_PRO_VERSION
+				array( 'jquery', 'tutor-pro-chart-js' ),
+				TUTOR_PRO_VERSION,
+				true
 			);
 
 			wp_add_inline_script(
@@ -127,17 +147,19 @@ class Assets {
 
 		if ( isset( $_GET['page'] ) && 'tutor_h5p' === $_GET['page'] ) {
 			wp_enqueue_script(
-				'tutor-pro-line-chart',
-				Utils::addon_config()->url . 'assets/js/lib/Chart.bundle.min.js',
+				'tutor-pro-chart-js',
+				tutor_pro()->url . 'assets/lib/Chart.bundle.min.js',
 				array(),
-				TUTOR_PRO_VERSION
+				TUTOR_PRO_VERSION,
+				true
 			);
 
 			wp_enqueue_script(
 				'tutor-pro-analytics',
 				Utils::addon_config()->url . 'assets/js/analytics.js',
-				array(),
-				TUTOR_PRO_VERSION
+				array( 'jquery', 'tutor-pro-chart-js' ),
+				TUTOR_PRO_VERSION,
+				true
 			);
 
 			wp_add_inline_script(

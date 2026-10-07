@@ -328,6 +328,52 @@ class VisibilityCondition
 						'title' 	  => 'Offer sale Price',
 						'operator_type' => 'boolean_operators',
 					),
+
+					// start: trial
+					array(
+						'source' => TDE_APP_PREFIX,
+						'value' => 'trial_value',
+						'title' => 'Length of Trial',
+						'operator_type' => 'numeric_operators',
+						'operand_type' => array_merge(
+							DROIP_PLUGIN_SETTINGS['INPUT_NUMBER'],
+							array(
+								'placeholder' => 'Trial Value',
+							)
+						),
+					),
+
+					array(
+						'source' => TDE_APP_PREFIX,
+						'value' => 'trial_interval',
+						'title' => 'Trial Interval',
+						'operator_type' => 'dropdown_operators',
+						'operand_type' => array_merge(
+							DROIP_PLUGIN_SETTINGS['SELECT'],
+							array(
+								'options' => array(
+									array(
+										'value' => 'day',
+										'title' => 'Day',
+									),
+								),
+							),
+						),
+					),
+
+					array(
+						'source' => TDE_APP_PREFIX,
+						'value' => 'trial_fee',
+						'title' => 'Trial Fee',
+						'operator_type' => 'numeric_operators',
+						'operand_type' => array_merge(
+							DROIP_PLUGIN_SETTINGS['INPUT_NUMBER'],
+							array(
+								'placeholder' => 'Trial Fee',
+							)
+						),
+					),
+					// end: trial
 				),
 			),
 		);
@@ -599,6 +645,35 @@ class VisibilityCondition
 						'title'         => 'Certificate Enabled',
 						'operator_type' => 'boolean_operators',
 					),
+					array(
+						'source' => TDE_APP_PREFIX,
+						'value' => 'difficulty_level',
+						'title' => 'Difficulty Level',
+						'operator_type' => 'dropdown_operators',
+						'operand_type' => array_merge(
+							DROIP_PLUGIN_SETTINGS['SELECT'],
+							array(
+								'options' => array(
+									array(
+										'value' => 'all_levels',
+										'title' => 'All Levels',
+									),
+									array(
+										'value' => 'beginner',
+										'title' => 'Beginner',
+									),
+									array(
+										'value' => 'intermediate',
+										'title' => 'Intermediate',
+									),
+									array(
+										'value' => 'expert',
+										'title' => 'Expert',
+									),
+								),
+							)
+						),
+					),
 				)
 			),
 		);
@@ -860,13 +935,26 @@ class VisibilityCondition
 		switch ($field) {
 			case 'enrollment_fee':
 			case 'sale_price': {
-					return $membership_plan[$field] !== '0.00';
-				}
+				return $membership_plan[$field] !== '0.00';
+			}
 
 			case 'is_featured':
 			case 'provide_certificate': {
-					return $membership_plan[$field] == '1';
+				return $membership_plan[$field] == '1';
+			}
+
+			case 'trial_value':
+			case 'trial_fee': {
+				if (isset($membership_plan[$field])) {
+					return floatval($membership_plan[$field]);
 				}
+
+				return false;
+			}
+
+			case 'trial_interval': {
+				return $membership_plan['trial_interval'] ?? false;
+			}
 
 			default:
 				return isset($membership_plan[$field]) ? $membership_plan[$field] : null;
@@ -948,6 +1036,10 @@ class VisibilityCondition
 					}
 					return false;
 				}
+
+			case 'difficulty_level': {
+				return get_post_meta($course_id, '_tutor_course_level', true);
+			}
 		}
 	}
 

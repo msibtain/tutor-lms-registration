@@ -50,7 +50,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 						$user = tutor_utils()->get_tutor_user( $statement->user_id );
 						?>
 					<tr>
-						
 						<td>
 							<div class="tutor-d-flex tutor-align-center">
 								<?php
@@ -109,50 +108,50 @@ if ( ! defined( 'ABSPATH' ) ) {
 		}
 		?>
 	</div>
-	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-verbs-statements-modal">
+	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-verbs-statements-modal" role="dialog" aria-modal="true" aria-labelledby="h5p-verbs-statements-title" aria-hidden="true">
 		<div class="tutor-modal-overlay"></div>
 		<div class="tutor-modal-window">
 			<div class="tutor-modal-content">
 				<div class="tutor-modal-header">
-					<div class="tutor-modal-title">
-						<?php esc_html_e( 'Verbs', 'tutor' ); ?>
+					<div id="h5p-verbs-statements-title" class="tutor-modal-title">
+						<?php esc_html_e( 'Verbs', 'tutor-pro' ); ?>
 					</div>
-				<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-					<span class="tutor-icon-times" area-hidden="true"></span>
-				</button>
-			</div>
+					<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+						<span class="tutor-icon-times" aria-hidden="true"></span>
+					</button>
+				</div>
 			<div class="tutor-modal-body tutor-modal-container"></div>
 			</div>
 		</div>
 	</div>
-	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-activities-statements-modal">
+	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-activities-statements-modal" role="dialog" aria-modal="true" aria-labelledby="h5p-activities-statements-title" aria-hidden="true">
 		<div class="tutor-modal-overlay"></div>
 		<div class="tutor-modal-window">
 				<div class="tutor-modal-content">
 					<div class="tutor-modal-header">
-						<div class="tutor-modal-title">
-				<?php esc_html_e( 'Activities', 'tutor' ); ?>
+						<div id="h5p-activities-statements-title" class="tutor-modal-title">
+							<?php esc_html_e( 'Activities', 'tutor-pro' ); ?>
+						</div>
+						<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+							<span class="tutor-icon-times" aria-hidden="true"></span>
+						</button>
 					</div>
-					<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-						<span class="tutor-icon-times" area-hidden="true"></span>
-					</button>
-				</div>
 				<div class="tutor-modal-body tutor-modal-container"></div>
 			</div>
 		</div>
 	</div>
-	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-last-ten-statements-modal">
+	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-last-ten-statements-modal" role="dialog" aria-modal="true" aria-labelledby="h5p-last-ten-statements-title" aria-hidden="true">
 		<div class="tutor-modal-overlay"></div>
 		<div class="tutor-modal-window">
 				<div class="tutor-modal-content">
 					<div class="tutor-modal-header">
-						<div class="tutor-modal-title">
-				<?php esc_html_e( 'Last 10 statements', 'tutor' ); ?>
+						<div id="h5p-last-ten-statements-title" class="tutor-modal-title">
+							<?php esc_html_e( 'Last 10 statements', 'tutor-pro' ); ?>
+						</div>
+						<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+							<span class="tutor-icon-times" aria-hidden="true"></span>
+						</button>
 					</div>
-					<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-						<span class="tutor-icon-times" area-hidden="true"></span>
-					</button>
-				</div>
 				<div class="tutor-modal-body tutor-modal-container"></div>
 			</div>
 		</div>

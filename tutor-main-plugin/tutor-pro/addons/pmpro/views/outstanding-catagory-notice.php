@@ -9,6 +9,8 @@
  * @since 1.3.5
  */
 
+defined( 'ABSPATH' ) || exit;
+
 if ( ! count( $outstanding ) ) {
 	return;
 }

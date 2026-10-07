@@ -24,7 +24,6 @@ class CoursePreview extends Tutor_Base {
 	public function __construct() {
 		parent::__construct();
 
-		add_action( 'tutor_lesson_edit_modal_form_after', array( $this, 'additional_data_metabox_before' ), 10, 0 );
 		add_action( 'save_post_' . $this->lesson_post_type, array( $this, 'save_lesson_meta' ) );
 
 		add_filter( 'tutor_course/contents/lesson/title', array( $this, 'mark_lesson_title_preview' ), 10, 2 );
@@ -41,6 +40,11 @@ class CoursePreview extends Tutor_Base {
 	 * @return void
 	 */
 	public function save_lesson_meta( $post_ID ) {
+		$action = Input::post( 'action' );
+		if ( 'tutor_save_lesson' !== $action ) {
+			return;
+		}
+
 		$_is_preview = Input::post( '_is_preview' );
 		if ( $_is_preview ) {
 			update_post_meta( $post_ID, '_is_preview', 1 );

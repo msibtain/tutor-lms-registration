@@ -18,6 +18,7 @@ use TUTOR_EMAIL\EmailSettings;
  * It contains: { mail, to, key, edit, to_readable, back_url }
  */
 $data     = $active_tab_data['edit_email_data'];
+$mail     = $data['mail'];
 $to       = $data['to'];
 $edit     = $data['edit'];
 $back_url = $data['back_url'];
@@ -58,9 +59,11 @@ $heading       = isset( $saved_data['heading'] ) ? $saved_data['heading'] : null
 $message       = isset( $saved_data['message'] ) ? $saved_data['message'] : null;
 $before_button = isset( $saved_data['before_button'] ) ? $saved_data['before_button'] : null;
 $footer        = isset( $saved_data['footer_text'] ) ? $saved_data['footer_text'] : null;
+$button_link   = isset( $saved_data['button_link'] ) ? $saved_data['button_link'] : null;
 $block_heading = isset( $saved_data['block_heading'] ) ? $saved_data['block_heading'] : null;
 $block_content = isset( $saved_data['block_content'] ) ? $saved_data['block_content'] : null;
 $inactive_days = isset( $saved_data['inactive_days'] ) ? $saved_data['inactive_days'] : null;
+$editable      = $mail['editable'] ?? true;
 ?>
 <section class="tutor-backend-settings-page email-manage-page">
 	<header class="header-wrapper tutor-px-0 tutor-px-xl-32 tutor-py-24 tutor-bg-white tutor-border-bottom">
@@ -74,7 +77,13 @@ $inactive_days = isset( $saved_data['inactive_days'] ) ? $saved_data['inactive_d
 				<div>
 					<h4 class="tutor-color-black tutor-d-flex tutor-align-center tutor-fs-4 tutor-fw-medium tutor-mt-4">
 						<span id="email_template_title"><?php echo esc_attr( $default_data['label'] ); ?></span>
-						<label class="tutor-form-toggle tutor-ml-20">
+						<label class="tutor-form-toggle tutor-ml-20 
+						<?php
+						if ( ! $editable ) {
+							echo 'tutor-d-none';
+						}
+						?>
+						">
 							<input type="hidden" class="tutor-form-toggle-input" id="email_option_data" name="<?php echo esc_attr( $field_name ); ?>" value="<?php echo esc_attr( $settings_data ); ?>">
 							<input type="checkbox" class="tutor-form-toggle-input" <?php checked( $settings_data, 'on' ); ?>>
 							<span class="tutor-form-toggle-control"></span>
@@ -95,7 +104,7 @@ $inactive_days = isset( $saved_data['inactive_days'] ) ? $saved_data['inactive_d
 	<main class="email-page-container main-content-wrapper">
 		<div class="tutor-row tutor-gx-0">
 
-			<div class="tutor-col-md-6 tutor-border-right">
+			<div class="tutor-col-md-6 <?php echo esc_attr( is_rtl() ? 'tutor-border-left' : 'tutor-border-right' ); ?>">
 				<div class="content-form tutor-pr-md-16 tutor-pr-xl-32 tutor-pt-32">
 					<div class="tutor-text-right tutor-mb-8">
 						<button 
@@ -184,6 +193,17 @@ $inactive_days = isset( $saved_data['inactive_days'] ) ? $saved_data['inactive_d
 										<input type="text" name="email-footer-text" class="tutor-form-control" placeholder="footer text of email" value="<?php echo esc_html( $footer ); ?>">
 									</div>
 								<?php endif; ?>
+								<?php if ( isset( $default_data['button_link'] ) && null !== $default_data['button_link'] ) : ?>
+									<div class="tutor-option-field-input field-group tutor-mt-16">
+										<label class="tutor-form-label tutor-d-flex tutor-align-center">
+											<span><?php esc_html_e( 'Button Link', 'tutor-pro' ); ?></span>
+											<div class="tooltip-wrap tooltip-icon">
+												<span class="tooltip-txt tooltip-right"><?php esc_html_e( 'Button link', 'tutor-pro' ); ?></span>
+											</div>
+										</label>
+										<input type="url" name="email-button-link" class="tutor-form-control" placeholder="https://example.com" value="<?php echo esc_url( $button_link ); ?>">
+									</div>
+								<?php endif; ?>
 							</form>
 						</div>
 					</div>
@@ -208,7 +228,7 @@ $inactive_days = isset( $saved_data['inactive_days'] ) ? $saved_data['inactive_d
 							<div class="tutor-dropdown-parent">
 								<button class="tutor-btn tutor-color-secondary" action-tutor-dropdown="toggle">
 									<span class="tutor-icon-paper-plane tutor-mr-8" aria-hidden="true"></span>
-									<span><?php esc_html_e( 'Send a test mail', 'tutor-pro' ); ?></span>
+									<span><?php esc_html_e( 'Send a Test Mail', 'tutor-pro' ); ?></span>
 								</button>
 								<div class="tutor-dropdown" style="width: 350px;" data-tutor-copy-target="">
 									<?php

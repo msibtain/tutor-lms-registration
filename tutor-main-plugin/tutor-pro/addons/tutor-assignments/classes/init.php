@@ -11,6 +11,8 @@
 
 namespace TUTOR_ASSIGNMENTS;
 
+use TUTOR\Permalink;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -57,7 +59,7 @@ class Init {
 	 */
 	public function load_tutor_assignments() {
 		spl_autoload_register( array( $this, 'loader' ) );
-		$this->assignments = new Assignments();
+		$this->assignments = new Assignments( true, $this->path );
 	}
 
 	/**

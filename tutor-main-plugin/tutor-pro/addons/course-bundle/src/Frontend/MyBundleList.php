@@ -14,6 +14,7 @@ namespace TutorPro\CourseBundle\Frontend;
 use TUTOR\Input;
 use Tutor\Models\CourseModel;
 use TutorPro\CourseBundle\Backend\BundleList;
+use TutorPro\CourseBundle\CustomPosts\CourseBundle;
 use TutorPro\CourseBundle\Models\BundleModel;
 use TutorPro\CourseBundle\Utils;
 
@@ -35,47 +36,75 @@ class MyBundleList {
 	 * @return void
 	 */
 	public function __construct() {
+		add_filter( 'tutor_dashboard_course_list_post_type', array( $this, 'add_bundles_on_course_list' ) );
+		add_filter( 'tutor_dashboard_course_list_edit_link', array( $this, 'add_bundle_edit_link' ), 10, 2 );
 		add_action( 'wp_loaded', array( $this, 'handle_status' ) );
-		add_action( 'load_dashboard_template_part_from_other_location', array( $this, 'load_my_bundles_template' ), 100 );
 		add_action( 'wp_ajax_tutor_delete_dashboard_bundle', array( $this, 'delete_bundle' ) );
+		add_action( 'tutor_dashboard_my_courses_filter', array( $this, 'add_course_bundle_filter' ) );
 	}
 
 	/**
-	 * Load dashboard my bundles templates.
+	 * Add Filter in dashboard my courses page for filtering course and bundles.
 	 *
-	 * @since 2.2.0
+	 * @since 3.5.0
 	 *
-	 * @param string $template template path.
+	 * @return void
+	 */
+	public function add_course_bundle_filter() {
+		$data = array(
+			'options'  => array(
+				''              => __( 'Courses & Bundles', 'tutor-pro' ),
+				'courses'       => __( 'Courses', 'tutor-pro' ),
+				'course-bundle' => __( 'Bundles', 'tutor-pro' ),
+			),
+			'selected' => Input::get( 'type' ),
+		);
+		tutor_load_template_from_custom_path(
+			Utils::template_path( 'dashboard-filter-bundles.php' ),
+			$data,
+			false
+		);
+	}
+
+	/**
+	 * Add edit link for bundles in dashboard course list.
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param string   $edit_link the link to update.
+	 * @param \WP_Post $post the post object.
 	 *
 	 * @return string
 	 */
-	public function load_my_bundles_template( $template ) {
-		global $wp_query;
-		$query_vars   = $wp_query->query_vars;
-		$is_dashboard = isset( $query_vars['tutor_dashboard_page'] );
-
-		if ( $is_dashboard && isset( $query_vars['tutor_dashboard_sub_page'] ) && 'pending-bundles' === $query_vars['tutor_dashboard_sub_page'] ) {
-			$template = Utils::template_path( 'dashboard/my-bundles/pending-bundles.php' );
-			if ( file_exists( $template ) ) {
-				return $template;
-			}
+	public function add_bundle_edit_link( $edit_link, $post ) {
+		if ( CourseBundle::POST_TYPE === $post->post_type ) {
+			$edit_link = BundleBuilder::get_edit_link( $post->ID );
 		}
 
-		if ( $is_dashboard && isset( $query_vars['tutor_dashboard_sub_page'] ) && 'draft-bundles' === $query_vars['tutor_dashboard_sub_page'] ) {
-			$template = Utils::template_path( 'dashboard/my-bundles/draft-bundles.php' );
-			if ( file_exists( $template ) ) {
-				return $template;
-			}
+		return $edit_link;
+	}
+
+	/**
+	 * Filter post type in dashboard course list.
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param array $post_types the array of post type.
+	 *
+	 * @return array
+	 */
+	public function add_bundles_on_course_list( $post_types ) {
+		$post_type = Input::get( 'type' );
+
+		if ( ! empty( $post_type ) ) {
+			$post_types = array( $post_type );
+			return $post_types;
 		}
 
-		if ( $is_dashboard && 'my-bundles' === $query_vars['tutor_dashboard_page'] ) {
-			$template = Utils::template_path( 'dashboard/my-bundles/my-bundles.php' );
-			if ( file_exists( $template ) ) {
-				return $template;
-			}
+		if ( is_array( $post_types ) && count( $post_types ) ) {
+			array_push( $post_types, CourseBundle::POST_TYPE );
 		}
-
-		return $template;
+		return $post_types;
 	}
 
 	/**
@@ -127,17 +156,17 @@ class MyBundleList {
 
 		if ( CourseModel::STATUS_PUBLISH === $status ) {
 			$flash_message = __( 'Bundle successfully published', 'tutor-pro' );
-			$link          = tutor_utils()->tutor_dashboard_url( 'my-bundles' );
+			$link          = tutor_utils()->tutor_dashboard_url( 'my-courses' );
 		}
 
 		if ( CourseModel::STATUS_PENDING === $status ) {
 			$flash_message = __( 'Bundle submitted for review', 'tutor-pro' );
-			$link          = tutor_utils()->tutor_dashboard_url( 'my-bundles/pending-bundles' );
+			$link          = tutor_utils()->tutor_dashboard_url( 'my-courses/pending-courses' );
 		}
 
 		if ( CourseModel::STATUS_DRAFT === $status ) {
 			$flash_message = __( 'Bundle moved to draft', 'tutor-pro' );
-			$link          = tutor_utils()->tutor_dashboard_url( 'my-bundles/draft-bundles' );
+			$link          = tutor_utils()->tutor_dashboard_url( 'my-courses/draft-courses' );
 		}
 
 		tutor_utils()->redirect_to( $link, $flash_message );

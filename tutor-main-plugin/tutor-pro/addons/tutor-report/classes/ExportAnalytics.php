@@ -11,6 +11,10 @@
 
 namespace TUTOR_REPORT;
 
+use Tutor\Helpers\QueryHelper;
+use Tutor\Models\CourseModel;
+use Tutor\Models\OrderModel;
+
 defined( 'ABSPATH' ) || exit;
 /**
  * Class ExportAnalytics
@@ -131,34 +135,12 @@ class ExportAnalytics {
 	 * @return mixed
 	 */
 	protected function discounts_data() {
-		global $wpdb;
-		$instructor_id    = get_current_user_id();
-		$complete_status  = tutor_utils()->get_earnings_completed_statuses();
-		$complete_status  = "'" . implode( "','", $complete_status ) . "'";
-		$course_post_type = tutor()->course_post_type;
-		$discounts        = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT w_order.coupon_amount, DATE_FORMAT(order_details.date_created, '%%d %%b %%Y %%T') AS created_at 
-				FROM {$wpdb->posts} AS post
-					INNER JOIN {$wpdb->postmeta} as mt1 ON mt1.post_id = post.ID
-					INNER JOIN {$wpdb->prefix}wc_order_product_lookup AS w_order 
-                        ON w_order.product_id = mt1.meta_value AND w_order.coupon_amount > 0
-					INNER JOIN {$wpdb->prefix}wc_order_stats AS order_details 
-                        ON order_details.order_id = w_order.order_id
-				WHERE post.post_author = %d
-					AND mt1.meta_key = %s
-					AND post.post_type = %s
-					AND post.post_status = %s
-					AND order_details.status = %s
-            ",
-				$instructor_id,
-				'_tutor_course_product_id',
-				$course_post_type,
-				'publish',
-				'wc-completed'
-			)
-		);
-		return $discounts;
+
+		if ( 'wc' === tutor_utils()->get_option( 'monetize_by' ) ) {
+			return $this->woocommerce_discount_data();
+		}
+
+		return $this->tutor_discount_data();
 	}
 
 	/**
@@ -169,10 +151,24 @@ class ExportAnalytics {
 	 * @return mixed
 	 */
 	protected function refunds_data() {
+
+		if ( 'wc' === tutor_utils()->get_option( 'monetize_by' ) ) {
+			return $this->woocommerce_refunds_data();
+		}
+
+		return $this->tutor_refunds_data();
+	}
+
+	/**
+	 * Refund data for WooCommerce monetization.
+	 *
+	 * @since 1.9.9
+	 *
+	 * @return mixed
+	 */
+	protected function woocommerce_refunds_data() {
 		global $wpdb;
 		$instructor_id    = get_current_user_id();
-		$complete_status  = tutor_utils()->get_earnings_completed_statuses();
-		$complete_status  = "'" . implode( "','", $complete_status ) . "'";
 		$course_post_type = tutor()->course_post_type;
 		$refunds          = $wpdb->get_results(
 			$wpdb->prepare(
@@ -195,5 +191,132 @@ class ExportAnalytics {
 			)
 		);
 		return $refunds;
+	}
+
+	/**
+	 * Refund data for Tutor native monetization.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return array
+	 */
+	protected function tutor_refunds_data() {
+		global $wpdb;
+
+		$instructor_id = get_current_user_id();
+		$primary_table = "{$wpdb->tutor_orders} AS orders";
+
+		$joining_tables = array(
+			array(
+				'type'  => 'LEFT',
+				'table' => "{$wpdb->tutor_earnings} AS earnings",
+				'on'    => 'earnings.order_id = orders.id',
+			),
+			array(
+				'type'  => 'LEFT',
+				'table' => "{$wpdb->posts} AS courses",
+				'on'    => 'courses.ID = earnings.course_id',
+			),
+		);
+
+		$select_columns = array(
+			"DATE_FORMAT(orders.created_at_gmt, '%d %b %Y %T') AS order_date",
+			'orders.refund_amount AS refund',
+			'courses.post_title AS course_title',
+		);
+
+		$where = array(
+			'earnings.user_id'      => $instructor_id,
+			'courses.post_status'   => CourseModel::STATUS_PUBLISH,
+			'orders.refund_amount'  => array( '>', 0 ),
+			'orders.order_status'   => array( 'IN', tutor_utils()->get_earnings_completed_statuses() ),
+			'orders.payment_status' => array( 'IN', array( OrderModel::PAYMENT_REFUNDED, OrderModel::PAYMENT_PARTIALLY_REFUNDED ) ),
+		);
+
+		$result = QueryHelper::get_joined_data( $primary_table, $joining_tables, $select_columns, $where, array(), 'orders.created_at_gmt', -1, 0, 'ASC' );
+
+		return $result['results'] ?? array();
+	}
+
+	/**
+	 * Retrieve WooCommerce coupon discount data for the current instructor.
+	 *
+	 * @since 1.9.9
+	 *
+	 * @global wpdb $wpdb WordPress database object.
+	 *
+	 * @return array List of discount records containing:
+	 *               - coupon_amount - Discount amount applied via coupon.
+	 *               - created_at (string) Formatted order creation date.
+	 */
+	protected function woocommerce_discount_data() {
+		global $wpdb;
+		$instructor_id = get_current_user_id();
+		$post_types    = QueryHelper::prepare_in_clause( array( tutor()->course_post_type, tutor()->course_post_type, tutor()->bundle_post_type ) );
+		$discounts     = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT 
+					w_order.coupon_amount, 
+					DATE_FORMAT(order_details.date_created, '%%d %%b %%Y %%T') AS created_at 
+				FROM {$wpdb->posts} AS post
+					INNER JOIN {$wpdb->postmeta} as mt1 ON mt1.post_id = post.ID
+					INNER JOIN {$wpdb->prefix}wc_order_product_lookup AS w_order 
+                        ON w_order.product_id = mt1.meta_value AND w_order.coupon_amount > 0
+					INNER JOIN {$wpdb->prefix}wc_order_stats AS order_details 
+                        ON order_details.order_id = w_order.order_id
+				WHERE post.post_author = %d
+					AND mt1.meta_key = %s
+					AND post.post_type IN ({$post_types})
+					AND post.post_status = %s
+					AND order_details.status = %s",
+				$instructor_id,
+				'_tutor_course_product_id',
+				'publish',
+				'wc-completed'
+			)
+		);
+		return $discounts;
+	}
+
+	/**
+	 * Retrieve discount (coupon) data for the current instructor.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @global wpdb $wpdb WordPress database object.
+	 *
+	 * @return array List of discount records containing:
+	 *               - created_at (string) Formatted order creation date.
+	 *               - coupon_amount (Discount amount applied via coupon).
+	 */
+	protected function tutor_discount_data() {
+
+		global $wpdb;
+
+		$instructor_id = get_current_user_id();
+		$primary_table = "{$wpdb->tutor_orders} AS orders";
+
+		$joining_tables = array(
+			array(
+				'type'  => 'LEFT',
+				'table' => "{$wpdb->tutor_earnings} AS earnings",
+				'on'    => 'earnings.order_id = orders.id',
+			),
+		);
+
+		$select_columns = array(
+			"DATE_FORMAT(orders.created_at_gmt, '%d %b %Y %T') AS created_at",
+			'orders.coupon_amount',
+		);
+
+		$where = array(
+			'coupon_amount'       => array( '>', 0 ),
+			'earnings.user_id'    => $instructor_id,
+			'orders.order_status' => OrderModel::ORDER_COMPLETED,
+		);
+
+		$result = QueryHelper::get_joined_data( $primary_table, $joining_tables, $select_columns, $where, array(), 'orders.created_at_gmt', -1, 0, 'ASC' );
+
+		return $result['results'] ?? array();
 	}
 }

@@ -1,5 +1,6 @@
 <div class="consent-screen oauth-redirect-url">
 	<?php
+		/* translators: 1: opening anchor tag to Google Console, 2: closing anchor tag, 3: redirect URI. */
 		echo wp_kses_post( sprintf( __( 'Create OAuth access data and upload Credentials JSON from %1$s Google Console %2$s. As a redirect URI set %3$s', 'tutor-pro' ), '<a href="https://console.developers.google.com/" target="_blank"><b>', '</b></a>', '<b>' . get_home_url() . '/' . \TUTOR_GC\init::$google_callback_string . '/</b>' ) );
 	?>
 </div>

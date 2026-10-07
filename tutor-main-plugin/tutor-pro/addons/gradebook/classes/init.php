@@ -96,14 +96,14 @@ class Init {
 	 */
 	public function add_options( $attr ) {
 		$attr['tutor_gradebook'] = array(
-			'label'    => __( 'Gradebook', 'tutor-pro' ),
-			'slug'     => 'gradebook',
-			'desc'     => __( 'Gradebook Settings', 'tutor-pro' ),
+			'label'    => __( 'Grading', 'tutor-pro' ),
+			'slug'     => 'tutor_gradebook',
+			'desc'     => __( 'Grading Settings', 'tutor-pro' ),
 			'template' => 'basic',
 			'icon'     => 'tutor-icon-grade-book',
 			'blocks'   => array(
 				array(
-					'label'      => __( 'Settings', 'tutor-pro' ),
+					'label'      => __( 'Grade Display', 'tutor-pro' ),
 					'slug'       => 'g_settings',
 					'block_type' => 'uniform',
 					'fields'     => array(

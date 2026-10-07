@@ -48,7 +48,7 @@ class Init {
 	public static function register_addon( array $addons ): array {
 		$new_addon = array(
 			'name'        => __( 'Social Login', 'tutor-pro' ),
-			'description' => __( 'Let users register & login through social network like Facebook, Google, etc.', 'tutor-pro' ),
+			'description' => __( 'Let users register & login through social network.', 'tutor-pro' ),
 		);
 
 		$meta_data = SocialLogin::meta_data();

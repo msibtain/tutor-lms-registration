@@ -73,7 +73,7 @@ trait ThumbnailGenerator {
 							'type'   => 'video',
 							'src'    => $video_info->$source_key,
 							'source' => $video_info->source,
-							'poster_url' => $video_info->poster_url
+							'poster_url' => isset($video_info->poster_url) ? $video_info->poster_url: null,
 						);
 					} elseif ( $video_info->source === 'youtube' ) {
 						$youtube_video_id = tutor_utils()->get_youtube_video_id( tutor_utils()->avalue_dot( 'source_youtube', $video_info ) );

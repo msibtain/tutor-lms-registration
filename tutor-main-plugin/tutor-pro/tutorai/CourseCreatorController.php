@@ -18,15 +18,13 @@ use TUTOR\Input;
 use Tutor\Models\CourseModel;
 use TUTOR\Quiz;
 use TUTOR\QuizBuilder;
-use Tutor\Traits\JsonResponse;
 
 /**
  * AiCourseCreator Class.
  *
  * @since 3.0.0
  */
-class CourseCreatorController {
-	use JsonResponse;
+class CourseCreatorController extends TutorAIBaseController {
 
 	/**
 	 * Topic menu order.
@@ -83,8 +81,12 @@ class CourseCreatorController {
 		$success = true;
 
 		if ( ! is_array( $payload ) ) {
-			$success           = false;
-			$errors['payload'] = __( 'Invalid payload', 'tutor-pro' );
+			return (object) array(
+				'success' => false,
+				'errors'  => array(
+					'payload' => __( 'Invalid payload', 'tutor-pro' ),
+				),
+			);
 		}
 
 		$rules = array(
@@ -225,21 +227,33 @@ class CourseCreatorController {
 	 * @return array
 	 */
 	private function prepare_question( $question ) {
-		$type = $question['type'] ?? '';
+		$question = (array) $question;
+		$type     = strtolower( str_replace( array( '-', ' ', '/' ), '_', $question['type'] ?? '' ) );
 
-		$arr[ QuizBuilder::TRACKING_KEY ] = QuizBuilder::FLAG_NEW;
-		$arr['question_title']            = $question['title'] ?? '';
-		$arr['question_description']      = $question['description'] ?? '';
-		$arr['question_type']             = $type;
-		$arr['question_mark']             = 1;
-		$arr['question_settings']         = Quiz::get_default_question_settings( $type );
+		// Use a non-numeric temporary ID so QuizBuilder's is_valid_quiz_question_answer_payload()
+		// correctly filters it out via is_numeric() instead of throwing "Invalid question id found".
+		$temp_question_id = 'ai-q-' . wp_generate_uuid4();
+
+		$arr = array(
+			QuizBuilder::TRACKING_KEY => QuizBuilder::FLAG_NEW,
+			'question_id'             => $temp_question_id,
+			'is_cb_question'          => false,
+			'question_title'          => $question['title'] ?? $question['question'] ?? '',
+			'question_description'    => $question['description'] ?? '',
+			'question_type'           => $type,
+			'question_mark'           => 1,
+			'question_settings'       => Quiz::get_default_question_settings( $type ),
+			'question_answers'        => array(),
+		);
 
 		$options = $question['options'] ?? array();
 		foreach ( $options as $option ) {
-			$arr ['question_answers'][] = array(
+			$option                    = (array) $option;
+			$arr['question_answers'][] = array(
 				QuizBuilder::TRACKING_KEY => QuizBuilder::FLAG_NEW,
-				'answer_title'            => $option['name'] ?? '',
-				'is_correct'              => $option['is_correct'] ?? 0,
+				'answer_id'               => 'ai-a-' . wp_generate_uuid4(),
+				'answer_title'            => $option['name'] ?? $option['title'] ?? $option['answer'] ?? $option['text'] ?? '',
+				'is_correct'              => ! empty( $option['is_correct'] ) ? 1 : 0,
 			);
 		}
 
@@ -263,15 +277,18 @@ class CourseCreatorController {
 		$prepared_questions = array();
 
 		foreach ( $questions as $question ) {
-			$type = $question['type'] ?? '';
+			$question = (array) $question;
+			$type     = strtolower( str_replace( array( '-', ' ', '/' ), '_', $question['type'] ?? '' ) );
 			if ( ! in_array( $type, $allowed_types, true ) ) {
 				continue;
 			}
 
+			$question['type']     = $type;
 			$prepared_questions[] = $this->prepare_question( $question );
 		}
 
 		$payload = array(
+			'ID'           => 0,
 			'post_title'   => $title,
 			'post_content' => $description,
 			'menu_order'   => $this->content_order,
@@ -313,8 +330,14 @@ class CourseCreatorController {
 
 			// Upload featured image add attached with course.
 			if ( ! empty( $payload['featured_image'] ) ) {
-				$featured_image = tutor_utils()->upload_base64_image( $payload['featured_image'] );
-				update_post_meta( $course_id, '_thumbnail_id', $featured_image->id );
+				try {
+					$featured_image = tutor_utils()->upload_base64_image( $payload['featured_image'] );
+					if ( ! empty( $featured_image->id ) ) {
+						update_post_meta( $course_id, '_thumbnail_id', $featured_image->id );
+					}
+				} catch ( Throwable $e ) {
+					// Skip image upload if it fails or if no image was provided.
+				}
 			}
 
 			// Backup course authors.
@@ -398,7 +421,7 @@ class CourseCreatorController {
 			return $data;
 		}
 
-		$data['total_enrolled_student'] = tutor_utils()->get_total_enrolments( '', '', $course_id );
+		$data['total_enrolled_student'] = tutor_utils()->count_enrolled_users_by_course( $course_id );
 
 		return $data;
 	}
@@ -411,7 +434,7 @@ class CourseCreatorController {
 	 * @return void
 	 */
 	public function ajax_ai_course_create() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$course_id  = Input::post( 'course_id', 0, Input::TYPE_INT );
 		$course_cls = new Course( false );
@@ -432,7 +455,7 @@ class CourseCreatorController {
 			);
 		}
 
-		$total_enrollment = tutor_utils()->get_total_enrolments( '', '', $course_id );
+		$total_enrollment = tutor_utils()->count_enrolled_users_by_course( $course_id );
 		if ( $total_enrollment > 0 ) {
 			$this->json_response(
 				__( "Re-creation isn't allowed due to enrolled students.", 'tutor-pro' ),

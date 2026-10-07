@@ -407,6 +407,32 @@ class QuizController extends BaseController {
 			} else {
 				$errors['quiz_option'][] = __( 'Question order is required', 'tutor-pro' );
 			}
+
+			if ( isset( $quiz_options['enable_partial_marking'] ) ) {
+				if ( ! in_array( (string) $quiz_options['enable_partial_marking'], array( '0', '1' ), true ) ) {
+					$errors['quiz_option'][] = __( 'Invalid partial marking value', 'tutor-pro' );
+				}
+			}
+
+			if ( isset( $quiz_options['enable_negative_marking'] ) ) {
+				if ( ! in_array( (string) $quiz_options['enable_negative_marking'], array( '0', '1' ), true ) ) {
+					$errors['quiz_option'][] = __( 'Invalid negative marking value', 'tutor-pro' );
+				}
+			}
+
+			if ( isset( $quiz_options['negative_mark_type'] ) ) {
+				if ( ! in_array( $quiz_options['negative_mark_type'], array( 'percent', 'fixed' ), true ) ) {
+					$errors['quiz_option'][] = __( 'Invalid negative mark type', 'tutor-pro' );
+				}
+			}
+
+			if ( isset( $quiz_options['negative_mark_value'] ) ) {
+				if ( ! is_numeric( $quiz_options['negative_mark_value'] ) || $quiz_options['negative_mark_value'] < 0 ) {
+					$errors['quiz_option'][] = __( 'Negative mark value must be a non-negative number', 'tutor-pro' );
+				} elseif ( 'percent' === ( $quiz_options['negative_mark_type'] ?? '' ) && $quiz_options['negative_mark_value'] > 100 ) {
+					$errors['quiz_option'][] = __( 'Negative mark percentage must not exceed 100', 'tutor-pro' );
+				}
+			}
 		}
 	}
 
@@ -439,6 +465,4 @@ class QuizController extends BaseController {
 
 		return ValidationHelper::validate( $validation_rules, $data );
 	}
-
 }
-

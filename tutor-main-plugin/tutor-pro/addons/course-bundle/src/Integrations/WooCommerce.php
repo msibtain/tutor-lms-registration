@@ -62,7 +62,7 @@ class WooCommerce {
 		/**
 		 * WC order items.
 		 *
-		 * @var $item \WC_Order_Item_Product
+		 * @var \WC_Order_Item_Product $item item.
 		 */
 		foreach ( $order_items as $item ) {
 			$product_id  = $item->get_product_id();

@@ -33,7 +33,7 @@ class Results {
 	 */
 	public static function get_h5p_statement_result_response( $statement, $choices, $correct_response_pattern, $h5p_targets ) {
 		$response_results = array();
-		if ( ! str_contains( $correct_response_pattern, '[,]' ) && str_contains( $correct_response_pattern, ',' ) ) {
+		if ( ! str_contains( $correct_response_pattern ?? '', '[,]' ) && str_contains( $correct_response_pattern ?? '', ',' ) ) {
 			$correct_responses        = explode( ',', $correct_response_pattern );
 			$correct_response_pattern = implode( '[,]', $correct_responses );
 		}
@@ -95,7 +95,7 @@ class Results {
 			}
 		}
 
-		if ( isset( $statement->activity_interaction_type ) &&  'long-fill-in' === $statement->activity_interaction_type ) {
+		if ( isset( $statement->activity_interaction_type ) && 'long-fill-in' === $statement->activity_interaction_type ) {
 			self::get_essay_statement_response( $statement, $response_results );
 		}
 
@@ -188,6 +188,9 @@ class Results {
 				$response_results[ $user_id ] = (object) $correct_response;
 			}
 		}
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/multiple-choice.php';
+		$response_results['question_type'] = 'multiple_choice';
 	}
 
 	/**
@@ -201,7 +204,8 @@ class Results {
 	 * @return void
 	 */
 	public static function get_sequencing_statements_result_response( &$response_results, $user_responses ) {
-		$idx = 0;
+		$idx              = 0;
+		$correct_response = array_values( $response_results );
 		foreach ( $response_results as $result_id => $result ) {
 			// taking only the number portion from the value that contains the id.
 			$user_response = (int) filter_var( $user_responses[ $idx ], FILTER_SANITIZE_NUMBER_INT );
@@ -209,8 +213,14 @@ class Results {
 				$result->is_correct             = false;
 				$response_results[ $result_id ] = $result;
 			}
+			$response                       = (array) $response_results[ $result_id ];
+			$response['user_response']      = $correct_response[ $user_response ]->description ?? '';
+			$response_results[ $result_id ] = (object) $response;
 			++$idx;
 		}
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/ordering.php';
+		$response_results['question_type'] = 'ordering';
 	}
 
 	/**
@@ -287,6 +297,9 @@ class Results {
 			}
 		}
 		$response_results = $final_response;
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/ordering.php';
+		$response_results['question_type'] = 'ordering';
 	}
 
 	/**
@@ -317,12 +330,29 @@ class Results {
 			);
 		}
 
-		$correct_response = (array) $response_results[ $user_response ];
-		if ( ! isset( $correct_response['is_correct'] ) ) {
-			$correct_response['is_correct'] = false;
+		if ( str_contains( $user_response, '[,]' ) ) {
+			$user_response = explode( '[,]', $user_response );
 		}
 
-		$response_results[ $user_response ] = (object) $correct_response;
+		if ( tutor_utils()->count( $user_response ) ) {
+			foreach ( $user_response as $response ) {
+				$correct_response = $response_results[ $response ];
+				if ( ! property_exists( $correct_response, 'is_correct' ) && ! property_exists( $correct_response, 'is_solution' ) ) {
+					$correct_response               = (array) $correct_response;
+					$correct_response['is_correct'] = false;
+					$response_results[ $response ]  = (object) $correct_response;
+				}
+			}
+		} else {
+			$correct_response = (array) $response_results[ $user_response ];
+			if ( ! isset( $correct_response['is_correct'] ) ) {
+				$correct_response['is_correct'] = false;
+			}
+			$response_results[ $user_response ] = (object) $correct_response;
+		}
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/multiple-choice.php';
+		$response_results['question_type'] = 'multiple_choice';
 	}
 
 	/**
@@ -357,6 +387,8 @@ class Results {
 		}
 
 		$response_results[ $user_response ] = (object) $correct_response;
+		$response_results['template_path']  = Utils::addon_config()->views . 'attempt-details/questions/true-false.php';
+		$response_results['question_type']  = 'true_false';
 	}
 
 	/**
@@ -395,8 +427,9 @@ class Results {
 					array_push(
 						$response_results,
 						(object) array(
-							'description' => $user_response,
-							'is_correct'  => false,
+							'description'    => $user_response,
+							'is_correct'     => false,
+							'correct_answer' => implode( ' / ', $haystack ),
 						)
 					);
 				}
@@ -418,13 +451,17 @@ class Results {
 					array_push(
 						$response_results,
 						(object) array(
-							'description' => $user_answer,
-							'is_correct'  => false,
+							'description'    => $user_answer,
+							'is_correct'     => false,
+							'correct_answer' => $correct_answer,
 						)
 					);
 				}
 			}
 		}
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/fill-in-the-blanks.php';
+		$response_results['question_type'] = 'fill_in_the_blank';
 	}
 
 	/**
@@ -471,5 +508,8 @@ class Results {
 				);
 			}
 		}
+
+		$response_results['template_path'] = Utils::addon_config()->views . 'attempt-details/questions/essay.php';
+		$response_results['question_type'] = 'open_ended';
 	}
 }

@@ -17,6 +17,7 @@ use TUTOR\Course;
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
 use Tutor\Models\CourseModel;
+use Tutor\Models\EnrollmentModel;
 use WP_REST_Request;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -526,7 +527,7 @@ class CourseController extends BaseController {
 			);
 		}
 
-		$is_enrolled = tutor_utils()->is_enrolled( $params['course_id'], $params['student_id'] );
+		$is_enrolled = EnrollmentModel::is_enrolled( $params['course_id'], $params['student_id'] );
 		if ( ! $is_enrolled ) {
 			return $this->response(
 				$this->mark_complete,

@@ -11,55 +11,110 @@
 namespace TUTOR_CONTENT_DRIP;
 
 use stdClass;
+use Tutor\Components\Badge;
+use TUTOR\Icon;
+use Tutor\Components\SvgIcon;
 use TUTOR\Input;
+use TUTOR\Lesson;
 use Tutor\Models\CourseModel;
 use Tutor\Models\QuizModel;
+use TUTOR\User;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Content Drip class
+ */
 class ContentDrip {
 
-	private $unlock_timestamp  = false;
-	private $unlock_message    = null;
-	private $drip_type         = null;
-	private $mail_log_meta_key = '_tutor_pro_content_drip_mail_log';
-	private $sent_mail_log     = array();
-	private $send_limit        = 5;
-	private $quiz_pass_req     = false;
+	/**
+	 * The Unlock Date.
+	 *
+	 * @var string
+	 */
+	private $unlock_date = '';
 
 	/**
-	 * Exclude Zoom, Meet meeting when sequential mode enabled
+	 * The unlock message
+	 *
+	 * @var string
+	 */
+	private $unlock_message = null;
+
+	/**
+	 * The content drip type.
+	 *
+	 * @var string
+	 */
+	private $drip_type = null;
+
+	/**
+	 * The email log meta key.
+	 *
+	 * @var string
+	 */
+	private $mail_log_meta_key = '_tutor_pro_content_drip_mail_log';
+
+	/**
+	 * Save sent mail logs.
+	 *
+	 * @var array
+	 */
+	private $sent_mail_log = array();
+
+	/**
+	 * Whether quiz pass is required.
+	 *
+	 * @var boolean
+	 */
+	private $quiz_pass_req = false;
+
+	/**
+	 * Exclude Zoom, Meet meeting when sequential mode enabled.
 	 *
 	 * @var array
 	 */
 	private $exclude_type = array( 'tutor_zoom_meeting', 'tutor-google-meet' );
 
+	/**
+	 * Whether quiz needs manual review.
+	 *
+	 * @var boolean
+	 */
 	private $quiz_manual_review_required = false;
 
+	/**
+	 * Get the post type of single post.
+	 *
+	 * @var string
+	 */
 	private $singular_post_type;
 
+	/**
+	 * Contend drip prerequisite contents.
+	 *
+	 * @var array
+	 */
+	private $prerequisites = array();
+
+	/**
+	 * Content drip class constructor.
+	 */
 	public function __construct() {
 
 		/**
-		 * Add meta box for lesson post type
-		 * add support content drip on single lesson
+		 * Enqueue scripts.
 		 *
-		 * @since 1.8.9
-		*/
-		add_filter( 'tutor_course_settings_tabs', array( $this, 'settings_attr' ) );
-
-		add_action( 'tutor_lesson_edit_modal_after_video', array( $this, 'content_drip_lesson_metabox' ), 10, 0 );
-		add_action( 'tutor_quiz_edit_modal_settings_tab_after_max_allowed_questions', array( $this, 'content_drip_lesson_metabox' ), 10, 0 );
-		add_action( 'tutor_assignment_edit_modal_form_after_attachments', array( $this, 'content_drip_lesson_metabox' ), 10, 0 );
+		 * @since 4.0.0
+		 */
+		add_action( 'wp_enqueue_scripts', array( $this, 'load_frontend_scripts' ) );
 
 		add_action( 'tutor/lesson_update/after', array( $this, 'lesson_updated' ) );
 		add_action( 'tutor_quiz_settings_updated', array( $this, 'lesson_updated' ) );
 		add_action( 'tutor_assignment_updated', array( $this, 'lesson_updated' ) );
 		add_action( 'tutor_assignment_created', array( $this, 'lesson_updated' ) );
-
-		add_action( 'tutor_quiz_builder_settings_tab_passing_grade_before', array( $this, 'render_quiz_pass_required_field' ), 10, 2 );
 
 		/**
 		 * On save lesson update content drip meta
@@ -74,6 +129,8 @@ class ContentDrip {
 		add_filter( 'tutor_lesson/single/content', array( $this, 'drip_content_protection' ) );
 		add_filter( 'tutor_quiz/single/wrapper', array( $this, 'drip_content_protection' ) );
 		add_filter( 'tutor_assignment/single/content', array( $this, 'drip_content_protection' ) );
+		add_filter( 'tutor_learning_area_content', array( $this, 'content_drip_protection' ) );
+		add_filter( 'tutor_learning_area_lesson_mark_as_complete', array( $this, 'remove_mark_as_complete' ) );
 
 		// Lesson-Quiz-Assignment onPublish Mailing.
 		add_action( 'init', array( $this, 'execute_content_drip_publish_hook' ) );
@@ -89,12 +146,79 @@ class ContentDrip {
 
 		add_filter( 'tutor_assignment_details_response', array( $this, 'extend_assignment_details_response' ), 10, 2 );
 		add_filter( 'tutor_lesson_details_response', array( $this, 'extend_lesson_details_response' ), 10, 2 );
+		add_filter( 'tutor_content_drip_assignment_deadline', array( $this, 'set_assignment_deadline' ), 10, 3 );
 	}
 
+	/**
+	 * Load frontend scripts
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public function load_frontend_scripts() {
+		if ( tutor_utils()->is_learning_area() ) {
+			wp_enqueue_style( 'tutor-content-drip', TUTOR_CONTENT_DRIP()->url . 'assets/css/content-drip.css', array(), TUTOR_PRO_VERSION );
+		}
+	}
+
+	/**
+	 * Set assignment deadline based on content drip date and days settings.
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param int $deadline the deadline time to compare.
+	 * @param int $course_id the course id.
+	 * @param int $assignment_id the assignment id.
+	 *
+	 * @return int
+	 */
+	public function set_assignment_deadline( $deadline, $course_id, $assignment_id ) {
+		$enable = (bool) get_tutor_course_settings( $course_id, 'enable_content_drip' );
+
+		if ( ! $enable ) {
+			return $deadline;
+		}
+
+		$drip_type = get_tutor_course_settings( $course_id, 'content_drip_type', 'unlock_by_date' );
+
+		if ( 'specific_days' === $drip_type ) {
+			$days            = (int) get_item_content_drip_settings( $assignment_id, 'after_xdays_of_enroll' );
+			$days_in_seconds = DAY_IN_SECONDS * $days;
+			$deadline       += $days_in_seconds;
+		}
+
+		if ( 'unlock_by_date' === $drip_type ) {
+			$unlock_timestamp = strtotime( get_item_content_drip_settings( $assignment_id, 'unlock_date' ) );
+
+			if ( $unlock_timestamp ) {
+				$deadline = $unlock_timestamp < $deadline ? $deadline : $unlock_timestamp;
+			}
+		}
+
+		return $deadline;
+	}
+
+	/**
+	 * Check if lesson is locked.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param string $status the status.
+	 *
+	 * @return string|bool
+	 */
 	public function check_if_lesson_is_locked( $status ) {
 		return $this->is_lock_lesson( get_the_ID() ) ? false : $status;
 	}
 
+	/**
+	 * Update content drip state.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return void
+	 */
 	public function tutor_content_drip_state_update() {
 		tutor_utils()->checking_nonce();
 		$course_id = Input::post( 'course_id', 0, Input::TYPE_INT );
@@ -108,71 +232,15 @@ class ContentDrip {
 		wp_send_json_success();
 	}
 
-	public function settings_attr( $args ) {
-		$args['contentdrip'] = array(
-			'label'      => __( 'Content Drip', 'tutor-pro' ),
-			'desc'       => __( 'Tutor Content Drip allow you to schedule publish topics / lesson', 'tutor-pro' ),
-			'icon_class' => 'tutor-icon-clock-line-o',
-			'callback'   => '',
-			'fields'     => array(
-				'_tutor_course_settings[enable_content_drip]' => array(
-					'id'      => 'content_drip',
-					'type'    => 'checkbox',
-					'label'   => '',
-					'desc'    => __( 'Enable / Disable content drip', 'tutor-pro' ),
-					'options' => array(
-						array(
-							'label_title' => __( 'Enable', 'tutor-pro' ),
-							'checked'     => (bool) tutor_utils()->get_course_settings( get_the_ID(), 'enable_content_drip' ),
-							'value'       => 1,
-						),
-					),
-				),
-				'line_break_key' => array(
-					'type' => 'line_break',
-				),
-				'_tutor_course_settings[content_drip_type]' => array(
-					'type'        => 'radio',
-					'label'       => __( 'Content Drip Type', 'tutor-pro' ),
-					'is_vertical' => true,
-					'value'       => tutor_utils()->get_course_settings( get_the_ID(), 'content_drip_type', 'unlock_by_date' ),
-					'options'     => array(
-						'unlock_by_date'                => __( 'Schedule course contents by date', 'tutor-pro' ),
-						'specific_days'                 => __( 'Content available after X days from enrollment', 'tutor-pro' ),
-						'unlock_sequentially'           => __( 'Course content available sequentially', 'tutor-pro' ),
-						'after_finishing_prerequisites' => __( 'Course content unlocked after finishing prerequisites', 'tutor-pro' ),
-					),
-					'desc'        => __( 'You can schedule your course content using the above content drip options.', 'tutor-pro' ),
-				),
-			),
-		);
-		return $args;
-	}
-
 	/**
-	 * Render quiz pass required toggle field in quiz builder settings tab
+	 * Save content drip settings.
 	 *
-	 * @since 2.1.0
+	 * @since 1.4.0
 	 *
-	 * @param int $course_id course id.
-	 * @param int $quiz_id quiz id.
+	 * @param int $lesson_id the lesson id.
 	 *
 	 * @return void
 	 */
-	public function render_quiz_pass_required_field( $course_id, $quiz_id ) {
-		$content_drip_enabled    = (bool) get_tutor_course_settings( $course_id, 'enable_content_drip' );
-		$content_drip_type       = get_tutor_course_settings( $course_id, 'content_drip_type', 'unlock_sequentially' );
-		$content_drip_sequential = 'unlock_sequentially' === $content_drip_type;
-
-		if ( $content_drip_enabled && $content_drip_sequential ) {
-			include TUTOR_CONTENT_DRIP()->path . 'views/quiz-pass-required-field.php';
-		}
-	}
-
-	public function content_drip_lesson_metabox() {
-		include TUTOR_CONTENT_DRIP()->path . 'views/content-drip-lesson.php';
-	}
-
 	public function lesson_updated( $lesson_id ) {
 		$content_drip_settings = tutor_utils()->array_get( 'content_drip_settings', $_POST );//phpcs:ignore
 		if ( tutor_utils()->count( $content_drip_settings ) ) {
@@ -181,26 +249,47 @@ class ContentDrip {
 	}
 
 	/**
-	 * @param $post
+	 * Show lock icon based on condition.
 	 *
-	 * Show lock icon based on condition
+	 * @param \WP_Post $post the post object.
+	 *
+	 * @return void
 	 */
 	public function show_content_drip_icon( $post ) {
 		$is_lock = $this->is_lock_lesson( $post->ID );
 
 		if ( $is_lock ) {
-			echo '<i class="tutor-icon-lock-line tutor-fs-7 tutor-color-muted tutor-mr-4" area-hidden="true"></i>';
+			echo '<i class="tutor-icon-lock-line tutor-fs-7 tutor-color-muted tutor-mr-4" aria-hidden="true"></i>';
 		}
 	}
 
-	public function alter_lqaz_show_permalink( $bool, $id ) {
-		if ( ! $bool ) {
-			return $bool;
+	/**
+	 * Alter show permalink.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param bool $boolean the boolean.
+	 * @param int  $id the id.
+	 *
+	 * @return bool
+	 */
+	public function alter_lqaz_show_permalink( $boolean, $id ) {
+		if ( ! $boolean ) {
+			return $boolean;
 		}
 
-		return $this->is_lock_lesson( $id ) ? null : $bool;
+		return $this->is_lock_lesson( $id ) ? false : $boolean;
 	}
 
+	/**
+	 * Check if lesson is locked.
+	 *
+	 * @since 1.4.0
+	 *
+	 * @param int $content_id the content id.
+	 *
+	 * @return bool
+	 */
 	public function is_lock_lesson( $content_id ) {
 		$content_type     = get_post_field( 'post_type', $content_id );
 		$lesson_post_type = tutor()->lesson_post_type;
@@ -214,14 +303,15 @@ class ContentDrip {
 		$drip_type       = get_tutor_course_settings( $course_id, 'content_drip_type', 'unlock_by_date' );
 		$this->drip_type = $drip_type;
 
-		$courseObg                = get_post_type_object( $content_type );
-		$this->singular_post_type = empty( $courseObg->labels->singular_name ) ? '' : $courseObg->labels->singular_name;
+		$course_obj               = get_post_type_object( $content_type );
+		$this->singular_post_type = empty( $course_obj->labels->singular_name ) ? '' : $course_obj->labels->singular_name;
 
-		if ( $drip_type === 'unlock_by_date' ) {
+		if ( 'unlock_by_date' === $drip_type ) {
 			$unlock_timestamp = strtotime( get_item_content_drip_settings( $content_id, 'unlock_date' ) );
 			if ( $unlock_timestamp ) {
-				$unlock_date          = date_i18n( get_option( 'date_format' ), $unlock_timestamp );
-				$this->unlock_message = sprintf( __( 'This %1$s will be available from %2$s', 'tutor-pro' ), $this->singular_post_type, $unlock_date );
+				$this->unlock_date = date_i18n( get_option( 'date_format' ), $unlock_timestamp );
+				// Translators: %1s post type %2s unlock date.
+				$this->unlock_message = sprintf( __( 'This %1$s will be available from %2$s', 'tutor-pro' ), $this->singular_post_type, $this->unlock_date );
 
 				return $unlock_timestamp > current_time( 'timestamp' );
 			}
@@ -236,8 +326,9 @@ class ContentDrip {
 
 				$unlock_timestamp = strtotime( $enroll_date ) + $days_in_time;
 
-				$unlock_date          = date_i18n( get_option( 'date_format' ), $unlock_timestamp );
-				$this->unlock_message = sprintf( __( 'This %1$s will be available for you from %2$s', 'tutor-pro' ), $this->singular_post_type, $unlock_date );
+				$this->unlock_date = date_i18n( get_option( 'date_format' ), $unlock_timestamp );
+				// Translators: %1s post type %2s unlock date.
+				$this->unlock_message = sprintf( __( 'This %1$s will be available for you from %2$s', 'tutor-pro' ), $this->singular_post_type, $this->unlock_date );
 
 				return $unlock_timestamp > current_time( 'timestamp' );
 			}
@@ -258,6 +349,7 @@ class ContentDrip {
 				if ( $previous_content->post_type === $lesson_post_type ) {
 					$is_lesson_complete = tutor_utils()->is_completed_lesson( $previous_id );
 					if ( ! $is_lesson_complete ) {
+						// Translators: %s name.
 						$this->unlock_message = sprintf( __( 'Please complete previous %s first', 'tutor-pro' ), $obj->labels->singular_name );
 						return true;
 					}
@@ -267,6 +359,7 @@ class ContentDrip {
 				if ( 'tutor_assignments' === $previous_content->post_type ) {
 					$is_submitted = tutor_utils()->is_assignment_submitted( $previous_id );
 					if ( ! $is_submitted ) {
+						// Translators: %s name.
 						$this->unlock_message = sprintf( __( 'Please submit previous %s first', 'tutor-pro' ), $obj->labels->singular_name );
 						return true;
 					}
@@ -281,6 +374,7 @@ class ContentDrip {
 					$this->quiz_pass_req               = false;
 
 					if ( ! $attempts ) {
+						// Translators: %s name.
 						$this->unlock_message = sprintf( __( 'Please complete previous %s first', 'tutor-pro' ), $obj->labels->singular_name );
 						return true;
 					}
@@ -292,9 +386,13 @@ class ContentDrip {
 					 */
 					$previous_pass_required = tutor_utils()->get_quiz_option( $previous_id, 'pass_is_required' );
 					$passed_previous_quiz   = QuizModel::is_quiz_passed( $previous_id, get_current_user_id() );
-					$is_retry_mode          = 'retry' === tutor_utils()->get_quiz_option( $previous_id, 'feedback_mode', 'default' );
-					if ( $is_retry_mode && $previous_pass_required && ! $passed_previous_quiz ) {
-						$this->unlock_message              = sprintf( __( 'To access this %s you have to pass the quiz', 'tutor-pro' ), $courseObg->labels->singular_name ) . '<a href="' . esc_url( get_permalink( $previous_id ) ) . '" style="color:#3E64DE" >`' . esc_html( $previous_content->post_title ) . '`</a>';
+					$limit_attempts_allowed = '1' === (string) tutor_utils()->get_quiz_option( $previous_id, 'limit_attempts_allowed', '0' );
+					$attempts_allowed       = (int) tutor_utils()->get_quiz_option( $previous_id, 'attempts_allowed', 0 );
+					$can_retry              = $limit_attempts_allowed && ( 0 === $attempts_allowed || $attempts_allowed > 1 );
+
+					if ( $can_retry && $previous_pass_required && ! $passed_previous_quiz ) {
+						// Translators: %s name.
+						$this->unlock_message              = sprintf( __( 'To access this %s you have to pass the quiz', 'tutor-pro' ), $course_obj->labels->singular_name ) . '<a href="' . esc_url( get_permalink( $previous_id ) ) . '" style="color:#3E64DE" > ' . esc_html( $previous_content->post_title ) . ' </a>';
 						$this->quiz_pass_req               = true;
 						$this->quiz_manual_review_required = QuizModel::is_manual_review_required( $previous_id );
 
@@ -312,13 +410,13 @@ class ContentDrip {
 				return false;
 			}
 
-			$prerequisites = (array) get_item_content_drip_settings( $content_id, 'prerequisites' );
-			$prerequisites = array_filter( $prerequisites );
+			$this->prerequisites = (array) get_item_content_drip_settings( $content_id, 'prerequisites' );
+			$this->prerequisites = array_filter( $this->prerequisites );
 
-			if ( tutor_utils()->count( $prerequisites ) ) {
+			if ( tutor_utils()->count( $this->prerequisites ) ) {
 				$required_finish = array();
 
-				foreach ( $prerequisites as $id ) {
+				foreach ( $this->prerequisites as $id ) {
 					$item = get_post( $id );
 
 					if ( ! $item || ! is_object( $item ) ) {
@@ -346,7 +444,8 @@ class ContentDrip {
 				}
 
 				if ( tutor_utils()->count( $required_finish ) ) {
-					$output  = the_title( '<div class="tutor-assignment-title tutor-fs-4 tutor-fw-medium tutor-color-black">', '</div>', false );
+					$output = the_title( '<div class="tutor-assignment-title tutor-fs-4 tutor-fw-medium tutor-color-black">', '</div>', false );
+					// Translators: %s post type.
 					$output .= '<h4>' . sprintf( __( 'You can take this %s after finishing the following prerequisites:', 'tutor-pro' ), $this->singular_post_type ) . '</h4>';
 					$output .= '<ul>';
 					foreach ( $required_finish as $required_finish_item ) {
@@ -363,6 +462,15 @@ class ContentDrip {
 		return false;
 	}
 
+	/**
+	 * Content drip protection for the new learning area.
+	 *
+	 * @since 1.9.10
+	 *
+	 * @param string $html the html content.
+	 *
+	 * @return string
+	 */
 	public function drip_content_protection( $html ) {
 		$content_id = get_the_ID();
 
@@ -371,7 +479,7 @@ class ContentDrip {
 			$previous_id = tutor_utils()->get_course_previous_content_id( $content_id, $this->exclude_type );
 
 			$header = '';
-			if ( get_post_field( 'post_type', $content_id ) != 'tutor_quiz' ) {
+			if ( get_post_field( 'post_type', $content_id ) !== 'tutor_quiz' ) {
 				ob_start();
 				tutor_load_template(
 					'single.common.header',
@@ -391,13 +499,14 @@ class ContentDrip {
 				$output = apply_filters( 'tutor/content_drip/unlock_message', $output );
 				return $header . "<div class='tutor-lesson-content-drip-wrap'> {$output} </div>";
 
-			} elseif ( 'unlock_sequentially' == $this->drip_type && $previous_id ) {
+			} elseif ( 'unlock_sequentially' === $this->drip_type && $previous_id ) {
 
 				$post_types = array(
 					'lesson'             => __( 'Lesson', 'tutor-pro' ),
 					'tutor_quiz'         => __( 'Quiz', 'tutor-pro' ),
 					'tutor_assignments'  => __( 'Assignment', 'tutor-pro' ),
 					'tutor_zoom_meeting' => __( 'Meeting', 'tutor-pro' ),
+					'tutor-google-meet'  => __( 'Meeting', 'tutor-pro' ),
 				);
 
 				$previous_title        = get_the_title( $previous_id );
@@ -418,8 +527,200 @@ class ContentDrip {
 		return $html;
 	}
 
+	/**
+	 * Render prerequisite list.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return string
+	 */
+	public function render_prerequisite_list() {
 
-	// Register list for emails in dashboard
+		$content = '';
+
+		if ( ! tutor_utils()->count( $this->prerequisites ) ) {
+			return $content;
+		}
+
+		foreach ( $this->prerequisites as $id ) {
+			$item = get_post( $id );
+
+			if ( ! $item || ! is_object( $item ) ) {
+				continue;
+			}
+
+			$link = get_post_permalink( $id );
+			$type = '';
+			$icon = '';
+
+			if ( tutor()->lesson_post_type === $item->post_type ) {
+				$type = Lesson::get_content_type_info( $item );
+				$icon = 'Reading' === $type ? Icon::BOOK_2 : Icon::VIDEO_CAMERA_2;
+			}
+
+			if ( tutor()->quiz_post_type === $item->post_type ) {
+				$type = __( 'Quiz', 'tutor-pro' );
+				$icon = Icon::QUIZ_2;
+			}
+
+			if ( tutor()->assignment_post_type === $item->post_type ) {
+				$type = __( 'Assignment', 'tutor-pro' );
+				$icon = Icon::ASSIGNMENT;
+			}
+
+			$title_html = sprintf(
+				'<div>
+					<a class="tutor-brand" href="%s">%s</a>
+					<div class="tutor-tiny tutor-text-subdued">%s</div>
+				</div>',
+				esc_url( $link ),
+				esc_html( $item->post_title ),
+				esc_html( $type )
+			);
+
+			$footer_item_html = sprintf(
+				'<div class="tutor-content-drip-card-footer-item">
+					<div class="tutor-icon-brand">%s</div>
+					%s
+				</div>',
+				SvgIcon::make()->name( $icon )->size( 20 )->get(),
+				$title_html
+			);
+
+			$content .= $footer_item_html;
+		}
+
+		return $content;
+	}
+
+	/**
+	 * Content drip protection for the new learning area.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $html the html content.
+	 *
+	 * @return string
+	 */
+	public function content_drip_protection( $html = '' ) {
+		$content_id      = get_the_ID();
+		$contents        = tutor_utils()->get_course_prev_next_contents_by_id( $content_id );
+		$image_base_path = 'images/illustrations/';
+		$button_label    = '';
+		$image_path      = '';
+
+		if ( ! $this->is_lock_lesson( $content_id ) ) {
+			return $html;
+		}
+
+		$item           = get_post( $content_id );
+		$title          = '';
+		$footer_label   = '';
+		$badge          = '';
+		$footer_content = '';
+
+		$post_types = array(
+			'lesson'             => __( 'lesson', 'tutor-pro' ),
+			'tutor_quiz'         => __( 'quiz', 'tutor-pro' ),
+			'tutor_assignments'  => __( 'assignment', 'tutor-pro' ),
+			'tutor_zoom_meeting' => __( 'meeting', 'tutor-pro' ),
+			'tutor-google-meet'  => __( 'meeting', 'tutor-pro' ),
+		);
+
+		if ( 'unlock_sequentially' === $this->drip_type && $contents->previous_id ) {
+			$title         = __( "You're Almost There", 'tutor-pro' );
+			$image_path    = $image_base_path . 'continue-previous-content.svg';
+			$previous_item = get_post( $contents->previous_id );
+
+			/* translators: %s item type */
+			$button_label = sprintf( __( 'Continue Previous %s', 'tutor-pro' ), ucfirst( $post_types[ $previous_item->post_type ] ?? '' ) );
+			/* translators: %s item type */
+			$footer_label = sprintf( __( '1 step remaining to unlock this %s', 'tutor-pro' ), $post_types[ $item->post_type ] ?? '' );
+			$content_id   = $contents->previous_id ?? 0;
+			/* translators: %1$s item type %2$s item name */
+			if ( empty( $this->unlock_message ) ) {
+				$this->unlock_message = sprintf(
+					/* translators: %1$s item type %2$s item name */
+					__( 'Complete the previous %1$s to unlock this content and continue to <b>%2$s</b>', 'tutor-pro' ),
+					$post_types[ $previous_item->post_type ] ?? '',
+					$item->post_title
+				);
+			}
+		} elseif ( 'after_finishing_prerequisites' === $this->drip_type ) {
+			$title = sprintf(
+				/* translators: %s item type */
+				_n(
+					'Complete the following prerequisite to unlock this %s',
+					'Complete the following prerequisites to unlock this %s',
+					count( $this->prerequisites ),
+					'tutor-pro'
+				),
+				ucfirst( $post_types[ $item->post_type ] ?? '' )
+			);
+			$image_path = $image_base_path . 'prerequisites.svg';
+			$badge      = Badge::make()
+							->label( __( 'Prerequisites Required', 'tutor-pro' ) )
+							->icon( Icon::DOT, 12 )
+							->variant( Badge::WARNING )
+							->rounded()
+							->get();
+
+			$footer_content = $this->render_prerequisite_list();
+
+			$this->unlock_message = '';
+
+		} else {
+			/* translators: %s item type */
+			$title        = sprintf( __( 'This %s is locked', 'tutor-pro' ), ucfirst( $post_types[ $item->post_type ] ?? '' ) );
+			$button_label = __( 'Go To Next', 'tutor-pro' );
+			$image_path   = $image_base_path . 'not-available-yet.svg';
+			$content_id   = $contents->next_id ?? 0;
+
+			if ( 'unlock_by_date' === $this->drip_type ) {
+				/* translators: %1$s item type %2$s unlock date */
+				$this->unlock_message = sprintf( __( 'This %1$s will be available from <b>%2$s</b>. Please return after the release date to begin.', 'tutor-pro' ), $post_types[ $item->post_type ] ?? '', $this->unlock_date );
+			}
+		}
+
+		$drip_title   = apply_filters( 'tutor/content_drip/title', sprintf( '<h3 class="tutor-h3 tutor-font-semibold tutor-pb-4">%s</h3>', esc_html( $title ) ) );
+		$drip_message = apply_filters( 'tutor/content_drip/unlock_message', sprintf( '<p class="tutor-text-secondary">%s</p>', $this->unlock_message ) );
+
+		ob_start();
+		require TUTOR_CONTENT_DRIP()->path . '/views/content-drip-card.php';
+		$html = ob_get_clean();
+
+		return $html;
+	}
+
+	/**
+	 * Remove mark as complete button from lesson
+	 * if content drip enabled.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $mark_as_complete_btn the button html.
+	 *
+	 * @return string
+	 */
+	public function remove_mark_as_complete( $mark_as_complete_btn ) {
+		$content_id = get_the_ID();
+
+		if ( ! $this->is_lock_lesson( $content_id ) ) {
+			return $mark_as_complete_btn;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Register email list for dashboard.
+	 *
+	 * @since 1.7.4
+	 *
+	 * @param array $emails the emails.
+	 *
+	 * @return array
+	 */
 	public function register_email_list( $emails ) {
 
 		$lqa = '{site_url}, {site_name}, {student_username}, {lqa_type}, {course_title}, ';
@@ -431,7 +732,13 @@ class ContentDrip {
 		return $emails;
 	}
 
-	// List all the courses where content drip enabled
+	/**
+	 * List all the courses where content drip enabled.
+	 *
+	 * @since 1.9.8
+	 *
+	 * @return array
+	 */
 	private function get_mailing_courses() {
 
 		global $wpdb;
@@ -454,7 +761,7 @@ class ContentDrip {
 		);
 
 		$courses = array_map(
-			function( $element ) {
+			function ( $element ) {
 				$element->meta_value = unserialize( $element->meta_value );
 				return $element;
 			},
@@ -464,7 +771,15 @@ class ContentDrip {
 		return $courses;
 	}
 
-	// Get all the lesson, quizzes and assignments by course ID
+	/**
+	 * Get all the lesson, quizzes and assignments by course ID.
+	 *
+	 * @since 1.9.8
+	 *
+	 * @param int $course_id the course id.
+	 *
+	 * @return array
+	 */
 	private function get_mailing_course_children( $course_id ) {
 
 		global $wpdb;
@@ -481,7 +796,17 @@ class ContentDrip {
 		//phpcs:enable
 	}
 
-	// Check if mail sent to specific user for specific lesson-quiz-assignment publish
+	/**
+	 * Check if mail sent to specific user for specific lesson-quiz-assignment publish.
+	 *
+	 * @since 1.7.2
+	 *
+	 * @param int $student_id the student id.
+	 * @param int $content_id the content id.
+	 * @param int $time_stamp the time stamp.
+	 *
+	 * @return bool
+	 */
 	private function is_mail_sent( $student_id, $content_id, $time_stamp ) {
 
 		if ( ! isset( $this->sent_mail_log[ $student_id ] ) ) {
@@ -499,7 +824,17 @@ class ContentDrip {
 		$this->sent_mail_log[ $student_id ][ $content_id ] = $log;
 	}
 
-	// Get the timestamp when the LQA should be considered as published
+	/**
+	 * Get the timestamp when the LQA should be considered as published.
+	 *
+	 * @since 1.7.2
+	 *
+	 * @param int    $content_id the content id.
+	 * @param string $enroll_date the enroll date.
+	 * @param bool   $unlock_by_date the unlock by date.
+	 *
+	 * @return int
+	 */
 	private function get_content_publish_timestamp( $content_id, $enroll_date, bool $unlock_by_date ) {
 		$timestamp = null;
 
@@ -519,7 +854,15 @@ class ContentDrip {
 		return $timestamp;
 	}
 
-	// Get enrollment list of published course by course ID
+	/**
+	 * Get enrollment list of published course by course ID.
+	 *
+	 * @since 1.9.10
+	 *
+	 * @param int $course_id the course id.
+	 *
+	 * @return array
+	 */
 	private function get_mailing_enrollments( $course_id ) {
 
 		global $wpdb;
@@ -543,7 +886,13 @@ class ContentDrip {
 		return $enrollments;
 	}
 
-	// Initialize content drip publication hooks
+	/**
+	 * Execute content drip publish hook.
+	 *
+	 * @since 1.9.10
+	 *
+	 * @return void
+	 */
 	public function execute_content_drip_publish_hook() {
 
 		$last_call = get_option( 'tutor_cd_last_call_time', null );
@@ -556,13 +905,13 @@ class ContentDrip {
 
 		$mail_enable_status = array();
 
-		// Loop through published courses
+		// Loop through published courses.
 		$courses = $this->get_mailing_courses();
 		foreach ( $courses as $course ) {
 
 			$drip_type = isset( $course->meta_value['content_drip_type'] ) ? $course->meta_value['content_drip_type'] : null;
 
-			if ( ! $drip_type || ( $drip_type !== 'unlock_by_date' && $drip_type !== 'specific_days' ) ) {
+			if ( ! $drip_type || ( 'unlock_by_date' !== $drip_type && 'specific_days' !== $drip_type ) ) {
 				// No need to send mail for other drip types. Or no drip defined.
 				continue;
 			}
@@ -570,11 +919,11 @@ class ContentDrip {
 			$students = $this->get_mailing_enrollments( $course->ID );
 			$contents = $this->get_mailing_course_children( $course->ID );
 
-			// Loop through lesson, quiz and assignments
+			// Loop through lesson, quiz and assignments.
 			foreach ( $contents as $content ) {
 
-				$event = trim( $content->post_type, 'tutor_' ); // lesson, quiz or assignments;
-				$event = trim( $event, 's' ); // lesson, quiz or assignment;
+				$event = trim( $content->post_type, 'tutor_' ); // lesson, quiz or assignments.
+				$event = trim( $event, 's' ); // lesson, quiz or assignment.
 
 				if ( ! array_key_exists( $event, $mail_enable_status ) ) {
 					$mail_enable_status[ $event ] = tutor_utils()->get_option( 'email_to_students.new_' . $event . '_published' );
@@ -586,14 +935,14 @@ class ContentDrip {
 
 				foreach ( $students as $student ) {
 
-					$unlocK_timestamp = $this->get_content_publish_timestamp( $content->ID, $student->enroll_date, $drip_type == 'unlock_by_date' );
+					$unlock_timestamp = $this->get_content_publish_timestamp( $content->ID, $student->enroll_date, 'unlock_by_date' === $drip_type );
 
-					if ( ! $unlocK_timestamp || $unlocK_timestamp > time() ) {
-						// Check if publish time passed
+					if ( ! $unlock_timestamp || $unlock_timestamp > time() ) {
+						// Check if publish time passed.
 						continue;
 					}
 
-					if ( ! $this->is_mail_sent( $student->student_id, $content->ID, $unlocK_timestamp ) ) {
+					if ( ! $this->is_mail_sent( $student->student_id, $content->ID, $unlock_timestamp ) ) {
 
 						$arg = array(
 							'student'  => $student,
@@ -611,23 +960,6 @@ class ContentDrip {
 		foreach ( $this->sent_mail_log as $user_id => $log ) {
 			update_user_meta( $user_id, $this->mail_log_meta_key, $log );
 		}
-	}
-
-	/**
-	 * Register meta box on single lesson screen
-	 *
-	 * @since 1.8.9
-	 */
-	public function register_content_drip_meta_box() {
-		tutor_meta_box_wrapper(
-			'tutor-content-drip-single-lesson',
-			__( 'Content Drip Settings', 'tutor-pro' ),
-			array( $this, 'content_drip_lesson_metabox' ),
-			tutor()->lesson_post_type,
-			'advanced',
-			'default',
-			'tutor-admin-post-meta'
-		);
 	}
 
 	/**

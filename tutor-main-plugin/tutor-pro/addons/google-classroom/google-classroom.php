@@ -61,5 +61,5 @@ if ( ! function_exists( 'TUTOR_GC' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_GC\Init();

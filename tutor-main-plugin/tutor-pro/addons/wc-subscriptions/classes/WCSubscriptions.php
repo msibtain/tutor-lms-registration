@@ -11,11 +11,11 @@
 
 namespace TUTOR_WCS;
 
-use \WC_Product;
+defined( 'ABSPATH' ) || exit;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+use Tutor\Helpers\DateTimeHelper;
+use Tutor\Models\EnrollmentModel;
+use \WC_Product;
 
 /**
  * Manage WC subscriptions
@@ -31,14 +31,20 @@ class WCSubscriptions {
 		/**
 		 * Cancel enrollment if Woocommerce subscription is not active
 		 *
-		 * @since v2.0.3
+		 * @since 2.0.3
 		 */
 		add_action( 'woocommerce_subscription_status_updated', array( $this, 'update_enrollment_status' ), 10, 3 );
 
 		/**
 		 * Filter WC product price for Tutor course
 		 */
-		add_filter( 'tutor_course_details_wc_add_to_cart_price', __CLASS__ . '::filter_price', 10, 2 );
+		add_filter( 'tutor_course_details_wc_add_to_cart_price', array( $this, 'filter_price' ), 10, 2 );
+
+		add_filter( 'tutor_should_fire_after_enrolled_for_wc_order', array( $this, 'skip_hook_fire_for_renewal_order' ), 10, 3 );
+		add_filter( 'tutor_can_gift_course', array( $this, 'filter_can_gift_course' ), 10, 2 );
+		add_filter( 'tutor_wc_should_process_checkout_order_item', array( $this, 'filter_should_process_checkout_order_item' ), 10, 3 );
+
+		add_action( 'tutor_course/single/entry/after', array( $this, 'subscription_expire_info' ), 9 );
 	}
 
 	/**
@@ -57,7 +63,7 @@ class WCSubscriptions {
 			$type    = is_object( $product ) && isset( $product->get_type ) ? $product->get_type() : null;
 
 			if ( 'subscription' === $type || 'variable-subscription' === $type ) {
-				$subscriptions           = $this->get_users_subscription( $user_id );
+				$subscriptions           = $this->get_user_subscriptions( $user_id );
 				$has_active_subscription = false;
 				foreach ( $subscriptions as $subscription_id => $subscription ) {
 					if ( $subscription->has_product( $product_id ) ) {
@@ -76,45 +82,26 @@ class WCSubscriptions {
 	}
 
 	/**
-	 * Get subscription details
+	 * Get list of user subscriptions
+	 *
+	 * @since 3.8.0 param $status is added.
 	 *
 	 * @param integer $user_id  user id.
+	 * @param string  $status subscription status | default 'active'.
 	 *
 	 * @return array
 	 */
-	public function get_users_subscription( $user_id = 0 ) {
+	public static function get_user_subscriptions( $user_id = 0, $status = 'active' ) {
 		$user_id = tutor_utils()->get_user_id( $user_id );
 
-		$query            = new \WP_Query();
-		$subscription_ids = $query->query(
+		$subscriptions = wcs_get_subscriptions(
 			array(
-				'post_type'           => 'shop_subscription',
-				'posts_per_page'      => -1,
-				'post_status'         => 'wc-active',
-				'orderby'             => array(
-					'date' => 'DESC',
-					'ID'   => 'DESC',
-				),
-				'fields'              => 'ids',
-				'no_found_rows'       => true,
-				'ignore_sticky_posts' => true,
-				'meta_query'          => array(
-					array(
-						'key'   => '_customer_user',
-						'value' => $user_id,
-					),
-				),
+				'subscriptions_per_page' => -1,
+				'subscription_status'    => $status,
+				'customer_id'            => $user_id,
 			)
 		);
 
-		$subscriptions = array();
-		foreach ( $subscription_ids as $subscription_id ) {
-			$subscription = wcs_get_subscription( $subscription_id );
-
-			if ( $subscription ) {
-				$subscriptions[ $subscription_id ] = $subscription;
-			}
-		}
 		return $subscriptions;
 	}
 
@@ -133,14 +120,10 @@ class WCSubscriptions {
 		if ( $order_id && tutor_utils()->is_tutor_order( $order_id ) ) {
 			$enrollment_status = 'active' === $new_status ? 'completed' : 'cancel';
 			$enrollments       = tutor_utils()->get_course_enrolled_ids_by_order_id( $order_id );
-			if ( is_array( $enrollments ) && count( $enrollments ) ) {
-				$ids = array();
-				foreach ( $enrollments as $enrollment ) {
-					array_push( $ids, $enrollment['enrolled_id'] );
-				}
-				if ( count( $ids ) ) {
-					tutor_utils()->update_enrollments( $enrollment_status, $ids );
-				}
+			$enrolled_ids      = tutor_utils()->count( $enrollments ) ? array_column( $enrollments, 'enrolled_id' ) : array();
+
+			if ( tutor_utils()->count( $enrolled_ids ) ) {
+				EnrollmentModel::update_enrollments( $enrollment_status, $enrolled_ids );
 			}
 		}
 	}
@@ -167,5 +150,122 @@ class WCSubscriptions {
 			$price = ob_get_clean();
 		}
 		return $price;
+	}
+
+	/**
+	 * Filter tutor_should_fire_after_enrolled_for_wc_order for WC subscription renewal order
+	 *
+	 * @since 3.8.2
+	 *
+	 * @param bool $fire_hook should fire hook.
+	 * @param int  $order_id order id.
+	 * @param int  $enrolled_id enrolled id.
+	 *
+	 * @return bool
+	 */
+	public function skip_hook_fire_for_renewal_order( $fire_hook, $order_id, $enrolled_id ) {
+		$is_renewal_order = function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order_id );
+		if ( $is_renewal_order ) {
+			$fire_hook = false;
+		}
+
+		return $fire_hook;
+	}
+
+	/**
+	 * Filter tutor_can_gift_course for WC subscription product.
+	 *
+	 * @since 3.8.2
+	 *
+	 * @param bool $can_gift can gift.
+	 * @param int  $course_id course id.
+	 *
+	 * @return bool
+	 */
+	public function filter_can_gift_course( $can_gift, $course_id ) {
+		$product_id = tutor_utils()->get_course_product_id( $course_id );
+		if ( $product_id ) {
+			$product = wc_get_product( $product_id );
+			if ( $product && $product->is_type( array( 'subscription', 'variable-subscription' ) ) ) {
+				// WC subscription product can't be gifted.
+				return false;
+			}
+		}
+
+		return $can_gift;
+	}
+
+	/**
+	 * Filter should process checkout order item for WC subscription product.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param bool           $should_process should process.
+	 * @param \WC_Order_Item $item item.
+	 * @param \WC_Order      $order order.
+	 *
+	 * @return bool
+	 */
+	public function filter_should_process_checkout_order_item( $should_process, $item, $order ) {
+		if ( $order && 'shop_subscription' === $order->get_type() ) {
+			$should_process = false;
+		}
+
+		return $should_process;
+	}
+
+	/**
+	 * Show subscription expire info for WC subscription.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int $course_id course id.
+	 *
+	 * @return void
+	 */
+	public function subscription_expire_info( $course_id ) {
+		$enrollment = EnrollmentModel::is_enrolled( $course_id, get_current_user_id() );
+		if ( ! $enrollment || ! $enrollment->product_id || ! $enrollment->order_id ) {
+			return;
+		}
+
+		$product = wc_get_product( $enrollment->product_id );
+		if ( ! $product || ! method_exists( $product, 'is_type' ) || ! $product->is_type( array( 'subscription', 'variable-subscription' ) ) ) {
+			return;
+		}
+
+		$subscriptions = wcs_get_subscriptions_for_order( $enrollment->order_id );
+		if ( ! tutor_utils()->count( $subscriptions ) ) {
+			return;
+		}
+
+		$end_date_gmt = null;
+		$validity     = null;
+		$subscription = $subscriptions[0] ?? null;
+		if ( ! is_object( $subscription ) ) {
+			return;
+		}
+
+		$end_date_gmt = $subscription->get_date( 'next_payment', 'gmt' );
+		if ( empty( $end_date_gmt ) ) {
+			$start_date_gmt = $subscription->get_date( 'start', 'gmt' );
+			$interval       = $subscription->get_billing_interval();
+			$period         = $subscription->get_billing_period();
+			$end_date_gmt   = DateTimeHelper::create( $start_date_gmt )->add( $interval, $period )->to_date_time_string();
+		}
+
+		if ( $end_date_gmt ) {
+			remove_all_filters( 'tutor_course/single/entry/after' );
+			$expire_text = DateTimeHelper::get_gmt_to_user_timezone_date( $end_date_gmt );
+			?>
+			<div class="enrolment-expire-info tutor-fs-7 tutor-color-muted tutor-d-flex tutor-align-center tutor-mt-12">
+				<i class="tutor-icon-calender-line tutor-mr-8"></i>
+				<?php
+				// translators: %s: expire date.
+				echo esc_html( sprintf( __( 'Subscription validity: %s', 'tutor-pro' ), $expire_text ) );
+				?>
+			</div>
+			<?php
+		}
 	}
 }

@@ -48,7 +48,7 @@ class Meetings extends Request {
 	 * @param array  $data
 	 * @return array|mixed
 	 */
-	public function create( string $userId, array $data = null ) {
+	public function create( string $userId, array $data = array() ) {
 		return $this->post( "users/{$userId}/meetings", $data );
 	}
 

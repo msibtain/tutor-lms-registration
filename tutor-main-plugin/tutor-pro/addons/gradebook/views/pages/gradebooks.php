@@ -41,18 +41,9 @@ $navbar_data                = array(
 	'tabs'         => $gradebook->tabs_key_value( $course_id ),
 	'active'       => $active_tab,
 	'add_button'   => true,
-	'button_title' => __( 'Add New', 'tutor' ),
+	'button_title' => __( 'Add New', 'tutor-pro' ),
 	'button_url'   => $add_gradebook_url,
 	'modal_target' => 'tutor-add-new-grade',
-);
-
-$filters = array(
-	'bulk_action'   => false,
-	'bulk_actions'  => $gradebook->prpare_bulk_actions(),
-	'ajax_action'   => 'tutor_gradebook_bulk_action',
-	'filters'       => true,
-	'course_filter' => true,
-	'course_filter' => true,
 );
 
 ?>
@@ -65,12 +56,12 @@ $filters = array(
 	tutor_load_template_from_custom_path( $navbar_template, $navbar_data );
 	$gradebooks = tutor_utils()->get_gradebooks();
 	?>
-	<div class="tutor-admin-body">
-		<div class="tutor-mt-24">
+	<div class="tutor-admin-container tutor-admin-container-lg">
+		<div class="tutor-mt-16">
 			<div class="tutor_admin_gradebook_list tutor-table-wrapper">
 				<?php tutor_alert( null, 'success' ); ?>
 				<?php if ( tutor_utils()->count( $gradebooks ) ) { ?>
-					<div class="tutor-table-responsive">
+					<div class="tutor-table-responsive tutor-dashboard-list-table">
 						<table class="tutor-table tutor-gradebooks-lists">
 							<thead>
 								<tr>
@@ -150,7 +141,7 @@ $filters = array(
 					if ( file_exists( $alert_template ) && function_exists( 'tutor_load_template_from_custom_path' ) ) {
 						$args = array(
 							'alert_class'  => 'tutor-alert tutor-warning',
-							'message'      => __( 'No grading system has been defined to manage student grades.' ),
+							'message'      => __( 'No grading system has been defined to manage student grades.', 'tutor-pro' ),
 							'icon'         => 'tutor-icon-circle-info',
 							'button_text'  => 'Import Sample Grade Data',
 							'button_class' => 'tutor-btn tutor-btn-sm',
@@ -166,16 +157,16 @@ $filters = array(
 </div>
 
 <!-- Add New Grade Modal -->
-<div id="tutor-add-new-grade" class="tutor-modal">
+<div id="tutor-add-new-grade" class="tutor-modal" role="dialog" aria-modal="true" aria-labelledby="tutor-add-new-grade-title" aria-hidden="true">
 	<div class="tutor-modal-overlay"></div>
 	<div class="tutor-modal-window">
 		<form id="tutor-add-new-gradebook-form" class="tutor-modal-content" method="post" autocomplete="off">
 			<div class="tutor-modal-header">
-				<div class="tutor-modal-title">
+				<div id="tutor-add-new-grade-title" class="tutor-modal-title">
 					<?php esc_html_e( 'Add New Grade', 'tutor-pro' ); ?>
 				</div>
-				<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-					<span class="tutor-icon-times" area-hidden="true"></span>
+				<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+					<span class="tutor-icon-times" aria-hidden="true"></span>
 				</button>
 			</div>
 
@@ -189,7 +180,7 @@ $filters = array(
 							<?php esc_html_e( 'Grade', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="grade_name" class="tutor-form-control tutor-mb-12" placeholder="<?php echo esc_attr( 'Grade Name', 'tutor' ); ?>" required />
+							<input type="text" name="grade_name" class="tutor-form-control tutor-mb-12" placeholder="<?php esc_attr_e( 'Grade Name', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 					<div class="tutor-col-sm-6">
@@ -197,7 +188,7 @@ $filters = array(
 							<?php esc_html_e( 'Point', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="grade_point" class="tutor-form-control tutor-mb-12" placeholder="<?php echo esc_attr( 'Grade Point', 'tutor' ); ?>" required />
+							<input type="text" name="grade_point" class="tutor-form-control tutor-mb-12" placeholder="<?php esc_attr_e( 'Grade Point', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 				</div>
@@ -208,7 +199,7 @@ $filters = array(
 							<?php esc_html_e( 'Maximum Percentile', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="percent_to" class="tutor-form-control tutor-mb-12" autocomplete="off" placeholder="<?php echo esc_attr( 'Maximum Percentile', 'tutor-pro' ); ?>" required />
+							<input type="text" name="percent_to" class="tutor-form-control tutor-mb-12" autocomplete="off" placeholder="<?php esc_attr_e( 'Maximum Percentile', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 					<div class="tutor-col-sm-6">
@@ -216,7 +207,7 @@ $filters = array(
 							<?php esc_html_e( 'Minimum Percentile', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="percent_from" class="tutor-form-control tutor-mb-12" placeholder="<?php echo esc_attr( 'Minimum Percentile', 'tutor-pro' ); ?>" required />
+							<input type="text" name="percent_from" class="tutor-form-control tutor-mb-12" placeholder="<?php esc_attr_e( 'Minimum Percentile', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 				</div>
@@ -248,16 +239,16 @@ $filters = array(
 </div>
 
 <!-- Update Grade Modal -->
-<div id="tutor-update-existing-grade" class="tutor-modal">
+<div id="tutor-update-existing-grade" class="tutor-modal" role="dialog" aria-modal="true" aria-labelledby="tutor-update-existing-grade-title" aria-hidden="true">
 	<div class="tutor-modal-overlay"></div>
 	<div class="tutor-modal-window">
 		<form id="tutor-update-gradebook-form" class="tutor-modal-content" method="post" autocomplete="off">
 			<div class="tutor-modal-header">
-				<div class="tutor-modal-title">
+				<div id="tutor-update-existing-grade-title" class="tutor-modal-title">
 					<?php esc_html_e( 'Update Grade', 'tutor-pro' ); ?>
 				</div>
-				<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-					<span class="tutor-icon-times" area-hidden="true"></span>
+				<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+					<span class="tutor-icon-times" aria-hidden="true"></span>
 				</button>
 			</div>
 
@@ -272,7 +263,7 @@ $filters = array(
 							<?php esc_html_e( 'Name', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="grade_name" class="tutor-form-control tutor-mb-12" placeholder="<?php echo esc_attr( 'Enter Name', 'tutor-pro' ); ?>" required />
+							<input type="text" name="grade_name" class="tutor-form-control tutor-mb-12" placeholder="<?php esc_attr_e( 'Enter Name', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 					<div class="tutor-col-sm-6">
@@ -280,7 +271,7 @@ $filters = array(
 							<?php esc_html_e( 'Grade Point', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="grade_point" class="tutor-form-control tutor-mb-12" placeholder="<?php echo esc_attr( 'Enter Grade Point', 'tutor-pro' ); ?>" required />
+							<input type="text" name="grade_point" class="tutor-form-control tutor-mb-12" placeholder="<?php esc_attr_e( 'Enter Grade Point', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 				</div>
@@ -290,7 +281,7 @@ $filters = array(
 							<?php esc_html_e( 'Maximum Percentile', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="percent_to" class="tutor-form-control tutor-mb-12 grade-percent-to" autocomplete="off" placeholder="<?php echo esc_attr( 'Maximum Percentile', 'tutor-pro' ); ?>" required />
+							<input type="text" name="percent_to" class="tutor-form-control tutor-mb-12 grade-percent-to" autocomplete="off" placeholder="<?php esc_attr_e( 'Maximum Percentile', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 					<div class="tutor-col-sm-6">
@@ -298,7 +289,7 @@ $filters = array(
 							<?php esc_html_e( 'Minimum Percentile', 'tutor-pro' ); ?>
 						</label>
 						<div class="tutor-input-group tutor-mb-4">
-							<input type="text" name="percent_from" class="tutor-form-control tutor-mb-12 grade-percent-from" placeholder="<?php echo esc_attr( 'Minimum Percentile', 'tutor-pro' ); ?>" required />
+							<input type="text" name="percent_from" class="tutor-form-control tutor-mb-12 grade-percent-from" placeholder="<?php esc_attr_e( 'Minimum Percentile', 'tutor-pro' ); ?>" required />
 						</div>
 					</div>
 				</div>

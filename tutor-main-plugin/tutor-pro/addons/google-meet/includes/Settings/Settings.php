@@ -12,6 +12,7 @@
 namespace TutorPro\GoogleMeet\Settings;
 
 use TUTOR\Input;
+use Tutor\Traits\JsonResponse;
 use TUTOR\Tutor_Base;
 use TutorPro\GoogleMeet\Validator\Validator;
 
@@ -23,6 +24,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Manage settings for each users
  */
 class Settings extends Tutor_Base {
+
+	use JsonResponse;
 
 	/**
 	 * User meta key that holds settings
@@ -40,7 +43,7 @@ class Settings extends Tutor_Base {
 		parent::__construct();
 
 		add_action( 'init', __CLASS__ . '::initial_setup' );
-		add_action( 'wp_ajax_tutor_update_google_meet_settings', __CLASS__ . '::handle_update' );
+		add_action( 'wp_ajax_tutor_update_google_meet_settings', array( $this, 'handle_update' ) );
 		add_filter( 'post_type_link', array( $this, 'change_meet_single_url' ), 1, 2 );
 	}
 
@@ -93,7 +96,7 @@ class Settings extends Tutor_Base {
 				array(
 					'name'          => 'reminder_time',
 					'label'         => __( 'Default Reminder Time', 'tutor-pro' ),
-					'help_text'     => __( 'Set a default reminder time to get an email notification', 'tutor-pro' ),
+					'help_text'     => __( 'Define how long before a meeting email reminders are automatically sent to attendees.', 'tutor-pro' ),
 					'type'          => 'radio',
 					'options'       => array(
 						array(
@@ -114,7 +117,7 @@ class Settings extends Tutor_Base {
 				array(
 					'name'          => 'event_status',
 					'label'         => __( 'Set Default Event Status', 'tutor-pro' ),
-					'help_text'     => __( 'Set a default status for Google Meet event', 'tutor-pro' ),
+					'help_text'     => __( 'Automatically mark new Google Meet events as Confirmed or Tentative.', 'tutor-pro' ),
 					'type'          => 'radio',
 					'options'       => array(
 						array(
@@ -131,7 +134,7 @@ class Settings extends Tutor_Base {
 				array(
 					'name'          => 'send_updates',
 					'label'         => __( 'Send Updates', 'tutor-pro' ),
-					'help_text'     => __( 'Select how to send notifications about the creation of the new event. Note that some emails might still be sent.', 'tutor-pro' ),
+					'help_text'     => __( 'Specify who receives email notifications when a new event is created.', 'tutor-pro' ),
 					'type'          => 'radio',
 					'options'       => array(
 						array(
@@ -152,7 +155,7 @@ class Settings extends Tutor_Base {
 				array(
 					'name'          => 'transparency',
 					'label'         => __( 'Transparency', 'tutor-pro' ),
-					'help_text'     => __( 'Select if the events block time on the calendar by default.', 'tutor-pro' ),
+					'help_text'     => __( 'Determine if events block calendar availability or leave the time slot free.', 'tutor-pro' ),
 					'type'          => 'radio',
 					'options'       => array(
 						array(
@@ -169,7 +172,7 @@ class Settings extends Tutor_Base {
 				array(
 					'name'          => 'event_visibility',
 					'label'         => __( 'Visibility on Calendar', 'tutor-pro' ),
-					'help_text'     => __( 'Set the default visibility of the event on the calendar.', 'tutor-pro' ),
+					'help_text'     => __( 'Define the default privacy level for this event on attendees\' calendars.', 'tutor-pro' ),
 					'type'          => 'radio',
 					'options'       => array(
 						array(
@@ -237,7 +240,7 @@ class Settings extends Tutor_Base {
 	 *
 	 * @return void  send wp_json response
 	 */
-	public static function handle_update() {
+	public function handle_update() {
 		tutor_utils()->checking_nonce();
 		if ( Validator::current_user_has_access() ) {
 			//phpcs:ignore WordPress.Security.NonceVerification.Missing
@@ -247,11 +250,11 @@ class Settings extends Tutor_Base {
 			unset( $post['_wp_http_referer'] );
 
 			if ( self::update_settings( $post ) ) {
-				wp_send_json_success(
+				$this->response_success(
 					__( 'Settings updated successfully!', 'tutor-pro' )
 				);
 			} else {
-				wp_send_json_error(
+				$this->response_bad_request(
 					__( 'Settings update failed!', 'tutor-pro' )
 				);
 			}

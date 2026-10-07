@@ -13,6 +13,9 @@ namespace TUTOR_NOTIFICATIONS;
 
 defined( 'ABSPATH' ) || exit;
 
+use Tutor\Helpers\QueryHelper;
+use Tutor\Helpers\UrlHelper;
+
 /**
  * Utils class
  */
@@ -34,7 +37,7 @@ class Utils {
 	 *
 	 * @param array $data notification data.
 	 *
-	 * @return void
+	 * @return int
 	 */
 	public static function save_notification_data( array $data ) {
 		/**
@@ -44,9 +47,12 @@ class Utils {
 
 		global $wpdb;
 
-		$data = apply_filters( 'tutor_before_insert_notification_data', $data );
-		$wpdb->insert( $wpdb->tutor_notifications, $data );
-		do_action( 'tutor_after_insert_notification_data', $wpdb->insert_id );
+		$data            = apply_filters( 'tutor_before_insert_notification_data', $data );
+		$notification_id = QueryHelper::insert( 'tutor_notifications', $data );
+
+		do_action( 'tutor_after_insert_notification_data', $notification_id );
+
+		return $notification_id;
 	}
 
 	/**
@@ -68,7 +74,9 @@ class Utils {
 		);
 
 		$notifications = array_map(
-			function( $row ) {
+			function ( $row ) {
+				static $thumbnail_cache = array();
+
 				$current_date_obj      = new \DateTime( current_time( 'mysql' ) );
 				$notification_date_obj = new \DateTime( $row->created_at );
 				$interval              = $current_date_obj->diff( $notification_date_obj );
@@ -80,12 +88,51 @@ class Utils {
 					$row->created_at_readable = sprintf( __( '%s ago', 'tutor-pro' ), human_time_diff( strtotime( $row->created_at ) ) );
 				}
 
+				$post_id = isset( $row->post_id ) ? (int) $row->post_id : 0;
+
+				if ( $post_id > 0 ) {
+					if ( ! array_key_exists( $post_id, $thumbnail_cache ) ) {
+						$thumbnail_cache[ $post_id ] = get_the_post_thumbnail_url( $post_id, 'thumbnail' ) ?: '';
+					}
+
+					$row->thumbnail_url = $thumbnail_cache[ $post_id ];
+				} else {
+					$row->thumbnail_url = '';
+				}
+
+				/**
+				 * Added query param to the URL to ensure users are redirected to the announcements page after clicking on announcement type notification.
+				 *
+				 * @since 4.0.0
+				 */
+				$row->topic_url = $this->format_topic_url( $row );
+
 				return $row;
 			},
 			$notifications
 		);
 
 		return $notifications;
+	}
+
+	/**
+	 * Get latest notification of current user
+	 */
+	public function get_latest_notification_by_current_user() {
+		global $wpdb;
+		$current_user_id = get_current_user_id();
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $wpdb->tutor_notifications
+				WHERE receiver_id = %d
+				ORDER BY created_at DESC
+				LIMIT 1",
+				$current_user_id
+			)
+		);
+
+		return $row;
 	}
 
 	/**
@@ -179,5 +226,59 @@ class Utils {
 		);
 
 		$wpdb->delete( $tablename, $where_clause );
+	}
+
+	/**
+	 * Format and resolve the topic URL based on notification type.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param object $notification Notification data object.
+	 *
+	 * @return string | null Formatted topic URL.
+	 */
+	private function format_topic_url( object $notification ): ?string {
+
+		switch ( $notification->type ) {
+
+			case 'Announcements':
+				$topic_url = get_permalink( $notification->post_id );
+
+				return tutor_utils()->is_legacy_learning_mode()
+						? $topic_url
+						: UrlHelper::add_query_params(
+							$topic_url,
+							array( 'subpage' => 'announcements' )
+						);
+
+			case 'Q&A':
+				$query = wp_parse_url( $notification->topic_url, PHP_URL_QUERY );
+				wp_parse_str( $query, $params );
+
+				$question_id  = $params['question_id'] ?? 0;
+				$previous_url = tutor_utils()->tutor_dashboard_url( 'question-answer?question_id=' . $question_id );
+
+				if ( $previous_url === $notification->topic_url ) {
+					return UrlHelper::add_query_params(
+						tutor_utils()->get_tutor_dashboard_page_permalink( 'discussions' ),
+						array(
+							'tab' => 'qna',
+							'id'  => $question_id,
+						)
+					);
+				}
+
+				return $notification->topic_url;
+
+			case 'Quiz':
+				$previous_url = tutor_utils()->tutor_dashboard_url( 'my-quiz-attempts' );
+
+				return $previous_url === $notification->topic_url
+						? tutor_utils()->tutor_dashboard_url( 'courses/my-quiz-attempts' )
+						: $notification->topic_url;
+
+			default:
+				return $notification->topic_url;
+		}
 	}
 }

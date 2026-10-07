@@ -1,19 +1,14 @@
 <?php
-/*
-Plugin Name: Tutor Prerequisites
-Plugin URI: https://www.themeum.com/product/tutor-prerequisites
-Description: Set course prerequisites to guide learning paths effectively.
-Author: Themeum
-Version: 1.0.0
-Author URI: http://themeum.com
-Requires at least: 4.5
-Tested up to: 5.0
-Text Domain: tutor-prerequisites
-Domain Path: /languages/
-*/
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+/**
+ * Prerequisites Addon
+ *
+ * @package TutorPro/Addons
+ * @subpackage Prerequisites
+ * @author Themeum <support@themeum.com>
+ * @since 1.0.0
+ */
+
+defined( 'ABSPATH' ) || exit;
 
 /**
  * Defined the tutor main file
@@ -21,23 +16,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'TUTOR_PREREQUISITES_VERSION', '1.0.0' );
 define( 'TUTOR_PREREQUISITES_FILE', __FILE__ );
 
+add_filter( 'tutor_addons_lists_config', 'tutor_prerequisites_config' );
 /**
  * Showing config for addons central lists
+ *
+ * @param array $config config.
  */
-add_filter( 'tutor_addons_lists_config', 'tutor_prerequisites_config' );
 function tutor_prerequisites_config( $config ) {
-	$newConfig   = array(
+	$new_config   = array(
 		'name'        => __( 'Prerequisites', 'tutor-pro' ),
 		'description' => __( 'Set course prerequisites to guide learning paths effectively.', 'tutor-pro' ),
 	);
-	$basicConfig = (array) TUTOR_PREREQUISITES();
-	$newConfig   = array_merge( $newConfig, $basicConfig );
+	$basic_config = (array) TUTOR_PREREQUISITES();
+	$new_config   = array_merge( $new_config, $basic_config );
 
-	$config[ plugin_basename( TUTOR_PREREQUISITES_FILE ) ] = $newConfig;
+	$config[ plugin_basename( TUTOR_PREREQUISITES_FILE ) ] = $new_config;
 	return $config;
 }
 
 if ( ! function_exists( 'TUTOR_PREREQUISITES' ) ) {
+	/**
+	 * Addon helper
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return object
+	 */
+	//phpcs:ignore
 	function TUTOR_PREREQUISITES() {
 		$info = array(
 			'path'         => plugin_dir_path( TUTOR_PREREQUISITES_FILE ),
@@ -52,6 +57,6 @@ if ( ! function_exists( 'TUTOR_PREREQUISITES' ) ) {
 	}
 }
 
-require 'classes/init.php';
-$tutor = new TUTOR_PREREQUISITES\init();
-$tutor->run(); // Boom
+require 'classes/Init.php';
+$tutor = new TUTOR_PREREQUISITES\Init();
+$tutor->run();

@@ -20,8 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Init
  */
-//phpcs:ignore
-class init {
+class Init {
 	//phpcs:disable
 	public $version = TUTOR_REPORT_VERSION;
 	public $path;

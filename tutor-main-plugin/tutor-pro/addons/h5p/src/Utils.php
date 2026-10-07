@@ -103,46 +103,6 @@ class Utils {
 		return $plugin_instance->add_assets( $content );
 	}
 
-
-	/**
-	 * Delete quiz statement by quiz id or question id.
-	 *
-	 * @since 3.0.0
-	 *
-	 * @param integer $quiz_id the quiz id.
-	 * @param array   $question_ids the array of question ids.
-	 * @return void
-	 */
-	public static function delete_h5p_quiz_statements_by_id( $quiz_id = 0, $question_ids = null ) {
-		global $wpdb;
-
-		$quiz_id      = Input::sanitize( $quiz_id, 0, Input::TYPE_INT );
-		$question_ids = is_array( $question_ids ) ? array_filter( $question_ids, 'is_numeric' ) : null;
-
-		$where_clause = '';
-
-		if ( 0 !== $quiz_id ) {
-			$where_clause = " AND quiz_id IN ({$quiz_id})";
-		}
-
-		if ( is_array( $question_ids ) && count( $question_ids ) ) {
-			$question_ids = QueryHelper::prepare_in_clause( $question_ids );
-			$where_clause = " AND question_id IN ({$question_ids})";
-		}
-
-		$delete_statements = $wpdb->query(
-			//phpcs:disable
-			"DELETE FROM {$wpdb->prefix}tutor_h5p_quiz_statement WHERE 1=1 {$where_clause}"
-			//phpcs:enable
-		);
-
-		$delete_results = $wpdb->query(
-			//phpcs:disable
-			"DELETE FROM {$wpdb->prefix}tutor_h5p_quiz_result WHERE 1=1 {$where_clause}"
-			//phpcs:enable
-		);
-	}
-
 	/**
 	 * Provide the correct translated display text based on current locale.
 	 *
@@ -431,11 +391,13 @@ class Utils {
 			'path'             => plugin_dir_path( TUTOR_H5P_FILE ),
 			'url'              => plugin_dir_url( TUTOR_H5P_FILE ),
 			'basename'         => plugin_basename( TUTOR_H5P_FILE ),
+			'views'            => trailingslashit( plugin_dir_path( TUTOR_H5P_FILE ) . 'views' ),
+			'assets'           => trailingslashit( plugin_dir_url( TUTOR_H5P_FILE ) . 'assets' ),
 			'version'          => TUTOR_H5P_VERSION,
 			'nonce_action'     => 'tutor_nonce_action',
 			'nonce'            => '_wpnonce',
 			'h5p_plugin'       => class_exists( 'H5P_Plugin' ) ? \H5P_Plugin::get_instance() : null,
-			'h5p_admin_plugin' => class_exists( 'H5P_Plugin_Admin') ? \H5P_Plugin_Admin::get_instance() : null,
+			'h5p_admin_plugin' => class_exists( 'H5P_Plugin_Admin' ) ? \H5P_Plugin_Admin::get_instance() : null,
 		);
 
 		return (object) $info;

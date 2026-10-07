@@ -63,5 +63,5 @@ if ( ! function_exists( 'TUTOR_MT' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_MT\Init();

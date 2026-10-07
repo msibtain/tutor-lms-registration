@@ -206,6 +206,19 @@ class Hooks
                     ['title' => 'Content', 'value' => 'TUTOR_LMS-membership-features-feature-content'],
                 ];
             }
+        } else if (isset($collection_data['collectionType']) && $collection_data['collectionType'] === 'user' || $collection_data['collectionType'] === 'users') {
+            if ($collection_data['elementContentType'] === 'anchor') {
+                $fields['typeValuesAttr']['anchor']['author'] = array_merge(
+                    $fields['typeValuesAttr']['anchor']['author'],
+                    [
+                        ['title' => 'Facebook', 'value' => 'TUTOR_LMS-instructor-facebook'],
+                        ['title' => 'X (Twitter)', 'value' => 'TUTOR_LMS-instructor-twitter'],
+                        ['title' => 'Linkedin', 'value' => 'TUTOR_LMS-instructor-linkedin'],
+                        ['title' => 'Website', 'value' => 'TUTOR_LMS-instructor-website'],
+                        ['title' => 'Github', 'value' => 'TUTOR_LMS-instructor-github'],
+                    ]
+                );
+            }
         }
 
         return $fields;
@@ -757,6 +770,20 @@ class Hooks
                     }
 
                     return $url;
+                }
+            } else if ($dynamicContent['type'] === 'author') {
+                $user_id = isset($args['options'], $args['options']['user']) ? $args['options']['user']['ID'] : false;
+
+                if ($dynamicContent['value'] === 'TUTOR_LMS-instructor-facebook') {
+                    return get_user_meta($user_id, '_tutor_profile_facebook', true);
+                } else if ($dynamicContent['value'] === 'TUTOR_LMS-instructor-twitter') {
+                    return get_user_meta($user_id, '_tutor_profile_twitter', true);
+                } else if ($dynamicContent['value'] === 'TUTOR_LMS-instructor-linkedin') {
+                    return get_user_meta($user_id, '_tutor_profile_linkedin', true);
+                } else if ($dynamicContent['value'] === 'TUTOR_LMS-instructor-website') {
+                    return get_user_meta($user_id, '_tutor_profile_website', true);
+                } else if ($dynamicContent['value'] === 'TUTOR_LMS-instructor-github') {
+                    return get_user_meta($user_id, '_tutor_profile_github', true);
                 }
             }
         } elseif (isset($args['settings'])) {

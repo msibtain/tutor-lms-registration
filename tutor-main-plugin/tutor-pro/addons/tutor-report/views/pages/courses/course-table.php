@@ -21,14 +21,14 @@ $courses = new Course_List();
 		/**
 		 * Load Templates with data.
 		 */
-		$filters_template = tutor()->path . 'views/elements/filters.php';
+		$filters_template = tutor()->path . 'views/elements/list-filters.php';
 		tutor_load_template_from_custom_path( $filters_template, $filters );
 		?>
 	</div>
 
 	<div class="tutor-report-courses-data-table tutor-mt-24">
 		<?php if ( $the_query->have_posts() ) : ?>
-			<div class="tutor-table-responsive">
+			<div class="tutor-table-responsive tutor-dashboard-list-table">
 				<table class="tutor-table table-popular-courses">
 					<thead>
 						<tr>
@@ -94,7 +94,7 @@ $courses = new Course_List();
 				</table>
 			</div>
 		<?php else : ?>
-			<?php tutor_utils()->tutor_empty_state( tutor_utils()->not_found_text() ); ?>
+			<?php tutor_utils()->render_list_empty_state(); ?>
 		<?php endif; ?>
 	</div>
 

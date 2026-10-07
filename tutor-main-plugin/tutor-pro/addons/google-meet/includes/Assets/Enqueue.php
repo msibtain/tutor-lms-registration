@@ -49,6 +49,14 @@ class Enqueue {
 	 */
 	public static function load_front_end_scripts() {
 		self::enqueue_common_scripts();
+
+		$is_single_meet_page     = ( is_single() && get_post_type() === EventsModel::POST_TYPE );
+		$is_legacy_learning_mode = tutor_utils()->is_legacy_learning_mode();
+
+		if ( $is_single_meet_page && ! $is_legacy_learning_mode ) {
+			wp_enqueue_script( 'tutor_meeting_js', tutor_pro()->url . 'assets/js/live-meeting.js', array( 'tutor-core', 'wp-date' ), TUTOR_PRO_VERSION, true );
+			wp_enqueue_style( 'tutor_meeting_css', tutor_pro()->url . 'assets/css/live-meeting.css', false, TUTOR_PRO_VERSION );
+		}
 	}
 
 	/**
@@ -71,10 +79,12 @@ class Enqueue {
 
 		$post_type = get_post_type();
 		// load styles & scripts only required page.
-		if ( 'create-course' === $page || 'google-meet' === $page || tutor()->course_post_type === $post_type || EventsModel::POST_TYPE === $post_type ) {
+		$has_page = in_array( $page, array( 'create-course', 'google-meet', 'live-classes' ), true );
+		$has_post = in_array( $post_type, array( tutor()->course_post_type, EventsModel::POST_TYPE ), true );
+		if ( $has_page || $has_post ) {
 			wp_enqueue_script(
 				'tutor-pro-google-meet-ui-timepicker',
-				$plugin_data['assets'] . 'js/lib/jquery-ui-timepicker.js',
+				$plugin_data['assets'] . 'lib/jquery-ui-timepicker.js',
 				array( 'jquery', 'jquery-ui-datepicker', 'jquery-ui-slider' ),
 				TUTOR_PRO_VERSION,
 				true
@@ -85,6 +95,14 @@ class Enqueue {
 				$plugin_data['assets'] . 'js/scripts.js',
 				array( 'jquery', 'wp-i18n' ),
 				filemtime( $plugin_data['path'] . 'assets/js/scripts.js' ),
+				true
+			);
+
+			wp_enqueue_script(
+				'tutor-pro-google-meet-live-class',
+				$plugin_data['assets'] . 'js/meet.js',
+				array( 'jquery', 'wp-i18n' ),
+				filemtime( $plugin_data['path'] . 'assets/js/meet.js' ),
 				true
 			);
 
@@ -106,16 +124,16 @@ class Enqueue {
 				'tutor-pro-google-meet-ui-timepicker',
 				'_tutor_google_meet',
 				array(
-					'tutor_pro_now' 		=> __('Now', 'tutor-pro'),
-					'tutor_pro_done' 		=> __('Done', 'tutor-pro'),
-					'tutor_pro_choose_time' => __('Choose Time', 'tutor-pro'),
-					'tutor_pro_time' 		=> __('Time', 'tutor-pro'),
-					'tutor_pro_hour' 		=> __('Hour', 'tutor-pro'),
-					'tutor_pro_minute' 		=> __('Minute', 'tutor-pro'),
-					'tutor_pro_second' 		=> __('Second', 'tutor-pro'),
-					'tutor_pro_millisecond' => __('Millisecond', 'tutor-pro'),
-					'tutor_pro_microsecond' => __('Microsecond', 'tutor-pro'),
-					'tutor_pro_time_zone' 	=> __('Time Zone', 'tutor-pro'),
+					'tutor_pro_now'         => __( 'Now', 'tutor-pro' ),
+					'tutor_pro_done'        => __( 'Done', 'tutor-pro' ),
+					'tutor_pro_choose_time' => __( 'Choose Time', 'tutor-pro' ),
+					'tutor_pro_time'        => __( 'Time', 'tutor-pro' ),
+					'tutor_pro_hour'        => __( 'Hour', 'tutor-pro' ),
+					'tutor_pro_minute'      => __( 'Minute', 'tutor-pro' ),
+					'tutor_pro_second'      => __( 'Second', 'tutor-pro' ),
+					'tutor_pro_millisecond' => __( 'Millisecond', 'tutor-pro' ),
+					'tutor_pro_microsecond' => __( 'Microsecond', 'tutor-pro' ),
+					'tutor_pro_time_zone'   => __( 'Time Zone', 'tutor-pro' ),
 				)
 			);
 		}
@@ -146,7 +164,7 @@ class Enqueue {
 		global $wp_query;
 		$is_single_meet_page = (
 			is_single() && ! empty( $wp_query->query['post_type'] ) &&
-			$wp_query->query['post_type'] === EventsModel::POST_TYPE
+			EventsModel::POST_TYPE === $wp_query->query['post_type']
 		);
 		if ( is_single_course() || $is_single_meet_page ) {
 			$should_enqueue = true;

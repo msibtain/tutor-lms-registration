@@ -57,8 +57,10 @@ class CourseAnalytics {
 		);
 
 		foreach ( $enrollments as $enrollment ) {
-			$course_progress = tutor_utils()->get_course_completed_percent( $course_id, $enrollment->enroll_author );
-			if ( $course_progress == 100 ) {
+			$is_course_completed = tutor_utils()->is_completed_course( $course_id, $enrollment->enroll_author );
+			$course_progress     = tutor_utils()->get_course_completed_percent( $course_id, $enrollment->enroll_author );
+
+			if ( $is_course_completed || 100 === $course_progress ) {
 				$course_completed++;
 			} else {
 				$course_inprogress++;

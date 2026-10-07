@@ -4,57 +4,62 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit631a460b6010ba6d03c73cfd415f87ca
+class ComposerStaticInit0ca87427174d807eec5eb1da955d3c9b
 {
     public static $prefixLengthsPsr4 = array (
-        'T' => 
+        'T' =>
         array (
             'Tutor\\Traits\\' => 13,
-            'Tutor\\TemplateImport\\' => 21,
             'Tutor\\PaymentGateways\\' => 22,
             'Tutor\\Models\\' => 13,
             'Tutor\\Migrations\\' => 17,
             'Tutor\\Helpers\\' => 14,
+            'Tutor\\GDPR\\' => 11,
             'Tutor\\Ecommerce\\' => 16,
+            'Tutor\\Components\\' => 17,
             'Tutor\\Cache\\' => 12,
             'TUTOR\\' => 6,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Tutor\\Traits\\' => 
+        'Tutor\\Traits\\' =>
         array (
             0 => __DIR__ . '/../..' . '/traits',
         ),
-        'Tutor\\TemplateImport\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/template-import',
-        ),
-        'Tutor\\PaymentGateways\\' => 
+        'Tutor\\PaymentGateways\\' =>
         array (
             0 => __DIR__ . '/../..' . '/ecommerce/PaymentGateways',
         ),
-        'Tutor\\Models\\' => 
+        'Tutor\\Models\\' =>
         array (
             0 => __DIR__ . '/../..' . '/models',
         ),
-        'Tutor\\Migrations\\' => 
+        'Tutor\\Migrations\\' =>
         array (
             0 => __DIR__ . '/../..' . '/migrations',
         ),
-        'Tutor\\Helpers\\' => 
+        'Tutor\\Helpers\\' =>
         array (
             0 => __DIR__ . '/../..' . '/helpers',
         ),
-        'Tutor\\Ecommerce\\' => 
+        'Tutor\\GDPR\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/GDPR',
+        ),
+        'Tutor\\Ecommerce\\' =>
         array (
             0 => __DIR__ . '/../..' . '/ecommerce',
         ),
-        'Tutor\\Cache\\' => 
+        'Tutor\\Components\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/components',
+        ),
+        'Tutor\\Cache\\' =>
         array (
             0 => __DIR__ . '/../..' . '/cache',
         ),
-        'TUTOR\\' => 
+        'TUTOR\\' =>
         array (
             0 => __DIR__ . '/../..' . '/classes',
         ),
@@ -67,9 +72,9 @@ class ComposerStaticInit631a460b6010ba6d03c73cfd415f87ca
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit631a460b6010ba6d03c73cfd415f87ca::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit631a460b6010ba6d03c73cfd415f87ca::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit631a460b6010ba6d03c73cfd415f87ca::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit0ca87427174d807eec5eb1da955d3c9b::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit0ca87427174d807eec5eb1da955d3c9b::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit0ca87427174d807eec5eb1da955d3c9b::$classMap;
 
         }, null, ClassLoader::class);
     }

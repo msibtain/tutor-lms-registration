@@ -22,6 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use Tutor\Components\WPEditor;
+
 /**
  * Contains filter hooks
  */
@@ -32,6 +34,7 @@ class Filters {
 	 */
 	public function __construct() {
 		add_filter( 'tutor_qna_text_editor', __CLASS__ . '::filter_text_editor' );
+		add_filter( 'tutor_qna_editor', array( $this, 'filter_qna_editor' ), 10, 2 );
 		// Filter MCE buttons.
 		add_filter( 'mce_external_plugins', __CLASS__ . '::filter_external_plugins' );
 		add_filter( 'tutor_course_details_sidebar_attr', array( $this, 'course_details_sidebar_attr' ) );
@@ -123,19 +126,66 @@ class Filters {
 	}
 
 	/**
+	 * For pro users: inject the WPEditor component into the Q&A form.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $editor_html editor html.
+	 * @param array  $context Context passed from the template:
+	 *                        'form_id', 'default_value', 'placeholder', 'label'.
+	 *
+	 * @return string  Rendered WPEditor component HTML.
+	 */
+	public static function filter_qna_editor( $editor_html, array $context = array() ) {
+		$form_id       = $context['form_id'] ?? 'tutor_qna_wp_editor';
+		$default_value = $context['default_value'] ?? '';
+		$placeholder   = $context['placeholder'] ?? '';
+		$label         = $context['label'] ?? '';
+
+		$editor_html = WPEditor::make()
+			->name( 'answer' )
+			->id( $form_id )
+			->content( $default_value )
+			->placeholder( $placeholder )
+			->attr( 'x-bind', "register('answer', { required: '" . esc_js( __( 'Please enter your response.', 'tutor-pro' ) ) . "' })" )
+			->editor_config(
+				array(
+					'teeny'         => false,
+					'media_buttons' => false,
+					'quicktags'     => false,
+					'editor_height' => 150,
+					'tinymce'       => array(
+						'toolbar1' => 'bold,italic,underline,link,unlink,removeformat,image,bullist,codesample',
+						'toolbar2' => '',
+						'toolbar3' => '',
+						'plugins'  => 'link,image,lists,codesample',
+					),
+				)
+			);
+
+		if ( $label ) {
+			$editor_html->label( $label );
+		}
+
+		return $editor_html->get();
+	}
+
+	/**
 	 * Load codesample external TinyMCE plugin
 	 *
 	 * It will load on the single_course page only
 	 *
 	 * @since v2.0.10
 	 *
+	 * @since 4.0.0 Added support for frontend dashboard.
+	 *
 	 * @param array $plugins  available plugins.
 	 *
 	 * @return return  associative array (key => plugin url)
 	 */
 	public static function filter_external_plugins( array $plugins ) {
-		if ( is_single_course() ) {
-			$plugins['codesample'] = 'https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.1.2/plugins/codesample/plugin.min.js';
+		if ( is_single_course() || tutor_utils()->is_tutor_frontend_dashboard() ) {
+			$plugins['codesample'] = 'https://cdnjs.cloudflare.com/ajax/libs/tinymce/4.9.11/plugins/codesample/plugin.min.js';
 		}
 		return $plugins;
 	}

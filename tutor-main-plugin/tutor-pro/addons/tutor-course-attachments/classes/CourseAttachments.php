@@ -11,6 +11,8 @@
 
 namespace TUTOR_CA;
 
+use Tutor\Helpers\UrlHelper;
+use TUTOR\Icon;
 use TUTOR\Input;
 use TUTOR\Tutor_Base;
 
@@ -49,6 +51,9 @@ class CourseAttachments extends Tutor_Base {
 
 		// @since 3.0.0
 		add_filter( 'tutor_course_details_response', array( $this, 'extend_course_details_response' ) );
+
+		// Learning area resources menu.
+		add_filter( 'tutor_learning_area_sub_page_nav_item', array( $this, 'add_learning_area_resources_menu' ), 10, 2 );
 	}
 
 	/**
@@ -180,5 +185,48 @@ class CourseAttachments extends Tutor_Base {
 		$data['course_attachments'] = $attachments;
 
 		return $data;
+	}
+
+	/**
+	 * Add resources to learning area sidebar navigation
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array $menu_items existing menu items.
+	 *
+	 * @return array
+	 */
+	public function add_learning_area_resources_menu( $menu_items, $base_url ) {
+		global $tutor_course_id, $tutor_is_enrolled, $tutor_is_public_course, $tutor_is_course_instructor;
+
+		if ( ! $tutor_course_id ) {
+			return $menu_items;
+		}
+
+		/**
+		 * Check settings if admin & instructor as course access and
+		 * current user has permission to edit course then user should
+		 * access course attachments without enrollment.
+		 */
+		$is_enabled           = tutor_utils()->get_option( 'course_content_access_for_ia' );
+		$can_user_edit_course = tutor_utils()->can_user_edit_course( get_current_user_id(), $tutor_course_id );
+		$require_enrolment    = ! ( $is_enabled && $can_user_edit_course );
+
+		// Check if user has access (globals set in learning area template).
+		if ( ! $require_enrolment || $tutor_is_enrolled || $tutor_is_public_course || $tutor_is_course_instructor ) {
+			$resources_item = array(
+				'resources' => array(
+					'title'    => esc_html__( 'Resources', 'tutor-pro' ),
+					'icon'     => Icon::RESOURCES,
+					'url'      => UrlHelper::add_query_params( $base_url, array( 'subpage' => 'resources' ) ),
+					'template' => TUTOR_CA()->path . 'templates/resources.php',
+				),
+			);
+
+			// Add resources at the top of the menu.
+			$menu_items = array_merge( $resources_item, $menu_items );
+		}
+
+		return $menu_items;
 	}
 }

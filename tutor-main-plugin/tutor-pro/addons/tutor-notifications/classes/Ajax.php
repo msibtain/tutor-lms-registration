@@ -12,6 +12,7 @@
 namespace TUTOR_NOTIFICATIONS;
 
 use TUTOR\Input;
+use Tutor\Traits\JsonResponse;
 use \TUTOR_NOTIFICATIONS\Utils;
 
 defined( 'ABSPATH' ) || exit;
@@ -20,6 +21,7 @@ defined( 'ABSPATH' ) || exit;
  * Ajax class
  */
 class Ajax {
+	use JsonResponse;
 
 	/**
 	 * Utils class instance.
@@ -36,6 +38,7 @@ class Ajax {
 		$this->utils_function = new Utils();
 
 		add_action( 'wp_ajax_tutor_get_all_notifications', array( $this, 'tutor_get_all_notifications' ) );
+		add_action( 'wp_ajax_tutor_get_latest_notification', array( $this, 'tutor_get_latest_notification' ) );
 		add_action( 'wp_ajax_toggle_all_notifications_status_as_read', array( $this, 'toggle_all_notifications_status_as_read' ) );
 		add_action( 'wp_ajax_toggle_single_notification_status_as_read', array( $this, 'toggle_single_notification_status_as_read' ) );
 		add_action( 'wp_ajax_tutor_mark_all_notifications_as_unread', array( $this, 'tutor_mark_all_notifications_as_unread' ) );
@@ -56,6 +59,21 @@ class Ajax {
 				'notifications' => $all_notifications,
 			)
 		);
+	}
+
+	/**
+	 * Get latest notification
+	 * 
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public function tutor_get_latest_notification() {
+
+		tutor_utils()->check_nonce();
+
+		$notification = $this->utils_function->get_latest_notification_by_current_user();
+		$this->json_response( __( 'Success', 'tutor' ), $notification );
 	}
 
 	/**

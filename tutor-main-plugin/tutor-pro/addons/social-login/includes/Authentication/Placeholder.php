@@ -10,6 +10,9 @@
 
 namespace TutorPro\SocialLogin\Authentication;
 
+use Tutor\Components\SvgIcon;
+use TUTOR\Icon;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -71,35 +74,53 @@ class Placeholder {
 		if ( get_current_user_id() ) {
 			return;
 		}
+
 		$authentications = self::authentication_info();
+		$enabled_auths   = array_filter(
+			$authentications,
+			function( $auth ) {
+				return (bool) tutor_utils()->get_option( $auth['key'] );
+			}
+		);
+
+		if ( empty( $enabled_auths ) ) {
+			return;
+		}
+
 		$twitter_btn_url = rtrim( tutor_utils()->tutor_dashboard_url(), '/' ) . '?twitter_oauth_verify=true';
 		?>
 		<style>
+			.tutor-social-authentication {
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+				align-items: center;
+				padding-top: 24px;
+				border-top: 1px solid var(--tutor-border-idle, var(--tutor-border-color, #e0e2ea));
+			}
 			#tutor-pro-twitter-login {
-				width: 400px; background-color: #00acee; border-color: #00acee; font-weight: bold;
+				background-color: #000;
+				border-color: #000;
+				font-weight: bold;
 			}
 		</style>
-		<div id="tutor-pro-social-authentication" class="tutor-pt-24 tutor-d-flex tutor-flex-column tutor-align-center tutor-border-top-light" style="gap: 10px;">
+		<div id="tutor-pro-social-authentication" class="tutor-social-authentication">
 			<?php
-			foreach ( $authentications as $authentication ) {
-				$is_enabled = tutor_utils()->get_option( $authentication['key'] );
-				// If auth enabled then create placeholder.
-				if ( $is_enabled ) {
-					?>
-					<div class="tutor-d-flex tutor-justify-center" id="<?php echo esc_html( $authentication['placeholder_id'] ); ?>">
-						<?php if ( 'facebook' === $authentication['auth'] ) : ?>
-							<div class="fb-login-button" data-width="400px" data-size="large" data-button-type="" data-layout="" data-auto-logout-link="false" data-use-continue-as="true" scope="public_profile,email" show-faces="false" onlogin="checkLoginState();"></div>
-						<?php endif; ?>
+			foreach ( $enabled_auths as $authentication ) {
+				?>
+				<div class="tutor-flex tutor-d-flex tutor-justify-center" id="<?php echo esc_html( $authentication['placeholder_id'] ); ?>">
+					<?php if ( 'facebook' === $authentication['auth'] ) : ?>
+						<div class="fb-login-button" data-size="large" data-button-type="" data-layout="" data-auto-logout-link="false" data-use-continue-as="true" scope="public_profile,email" show-faces="false" onlogin="checkLoginState();"></div>
+					<?php endif; ?>
 
-						<?php if ( 'twitter' === $authentication['auth'] ) : ?>
-							<a href="<?php echo esc_url( $twitter_btn_url ); ?>" class="tutor-btn tutor-btn-primary tutor-justify-center" id="tutor-pro-twitter-login">
-								<span class="tutor-icon-brand-twitter"></span>
-								<span>&nbsp;Sign In with Twitter</span>
-							</a>
-						<?php endif; ?>
-					</div>
-					<?php
-				}
+					<?php if ( 'twitter' === $authentication['auth'] ) : ?>
+						<a href="<?php echo esc_url( $twitter_btn_url ); ?>" class="tutor-btn tutor-btn-primary tutor-justify-center" id="tutor-pro-twitter-login">
+							<?php SvgIcon::make()->name( Icon::X )->render(); ?>
+							<span>&nbsp;<?php esc_html_e( 'Sign In with X', 'tutor-pro' ); ?></span>
+						</a>
+					<?php endif; ?>
+				</div>
+				<?php
 			}
 			?>
 		</div>

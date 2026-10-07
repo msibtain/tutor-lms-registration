@@ -12,6 +12,10 @@
 namespace TUTOR_NOTIFICATIONS;
 
 use \Minishlink\WebPush\VAPID;
+use Tutor\Components\Constants\InputType;
+use Tutor\Components\InputField;
+use Tutor\Components\SvgIcon;
+use TUTOR\Icon;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -45,6 +49,9 @@ class Push_Notification {
 		add_action( 'wp_logout', array( $this, 'purge_browser_id' ) );
 		add_action( 'wp_login', array( $this, 'purge_browser_id' ) );
 		add_filter( 'tutor_localize_data', array( $this, 'supply_pn_data' ) );
+
+		add_action( 'tutor_load_dashboard_template_before', array( $this, 'drawer_initial_markup' ) );
+		add_action( 'tutor_before_dashboard_content', array( $this, 'drawer_initial_markup' ) );
 
 		add_action( 'tutor_announcement_editor/after', array( $this, 'notification_checkbox_for_announcement' ) );
 
@@ -194,7 +201,13 @@ class Push_Notification {
 
 		$notify_checked = tutor_utils()->get_option( 'tutor_pn_to_students.new_announcement_posted' );
 
-		if ( $notify_checked ) : ?>
+        if ( ! $notify_checked ) {
+            return;
+        }
+
+        $is_admin_dashboard = is_admin();
+
+		if ( $is_admin_dashboard ) : ?>
 			<div class="tutor-option-field-row">
 				<div class="tutor-form-check tutor-mb-4">
 					<input id="tutor_announcement-notification-push" type="checkbox" class="tutor-form-check-input tutor-form-check-20" name="tutor_push_notify_students" checked="checked"/>
@@ -204,6 +217,14 @@ class Push_Notification {
 				</div>
 			</div>
 			<?php
+		else :
+			InputField::make()
+				->type( InputType::CHECKBOX )
+				->name( 'tutor_push_notify_students' )
+				->label( __( 'Send push notification to all students of this course.', 'tutor-pro' ) )
+				->attr( 'x-bind', "register('tutor_push_notify_students')" )
+				->checked()
+				->render();
 		endif;
 	}
 
@@ -245,5 +266,36 @@ class Push_Notification {
 			</div>
 			<?php
 		}
+	}
+
+	/**
+	 * Render the push notification drawer template.
+     * 
+     * @since 4.0.0
+	 */
+	public function drawer_initial_markup()
+	{
+		?>
+		<template id="tutor-pn-drawer-template">
+			<div class="tutor-pn-drawer-content">
+				<div class="tutor-flex tutor-items-center tutor-gap-6 tutor-sm-flex-column tutor-sm-gap-4">
+					<div class="tutor-flex">
+						<img src="<?php echo esc_url( TUTOR_NOTIFICATIONS()->url . 'assets/images/notification.svg' ); ?>" alt="<?php esc_attr_e( 'Notification', 'tutor-pro' ); ?>" width="112" height="112">
+					</div>
+					<div class="tutor-sm-text-center">
+						<div class="tutor-pn-drawer-title"></div>
+						<div class="tutor-pn-drawer-description"></div>
+						<a href="#" class="tutor-btn tutor-btn-primary tutor-btn-x-small tutor-mt-5 tutor-sm-mt-7 tutor-pn-drawer-link"></a>
+					</div>
+				</div>
+				<div class="tutor-flex">
+					<button class="tutor-btn tutor-btn-primary tutor-btn-x-small tutor-btn-icon tutor-pn-drawer-close">
+						 <?php SvgIcon::make()->name(Icon::CROSS_2)->render(); ?>
+					</button>
+				</div>
+			</div>
+		</template>
+        <div class="tutor-pn-drawer-stack"></div>
+		<?php
 	}
 }

@@ -35,7 +35,7 @@ class EmailVerification {
 	/**
 	 * Flash msg obj
 	 *
-	 * @var object
+	 * @var FlashMessage
 	 */
 	private static $flash_message;
 
@@ -110,13 +110,14 @@ class EmailVerification {
 	 */
 	public static function send_verification_mail( $user, $attempt = '' ) {
 		if ( is_a( $user, 'WP_User' ) ) {
-			$send = self::send_mail( $user, $attempt );
+			$token = md5( $user->user_email . time() . wp_rand() );
+			$send  = self::send_mail( $user, $attempt, $token );
 			if ( $send ) {
 				$msg = __( 'A verification mail has been sent, please check your email.', 'tutor-pro' );
 
 				// Add email verification meta data.
 				update_user_meta( $user->ID, self::VERIFICATION_REQ_META_KEY, self::REQUIRED_IDENTIFIER );
-				update_user_meta( $user->ID, self::VERIFICATION_TOKEN_META_KEY, md5( $user->user_email ) );
+				update_user_meta( $user->ID, self::VERIFICATION_TOKEN_META_KEY, $token );
 
 				if ( 'instructor-registration' === $attempt ) {
 					update_user_meta( $user->ID, '_is_tutor_instructor', tutor_time() );
@@ -126,8 +127,9 @@ class EmailVerification {
 				}
 
 				self::$flash_message->data = array(
-					'alert'   => 'success',
-					'message' => $msg,
+					'alert'     => 'success',
+					'message'   => $msg,
+					'css_class' => 'tutor-mx-8',
 				);
 
 				self::$flash_message->set_cache();
@@ -159,16 +161,19 @@ class EmailVerification {
 	 * Send verification email
 	 *
 	 * @since 2.1.9
+	 * @since 3.9.6 param $token added.
 	 *
 	 * @param object $user WP_User.
 	 * @param string $attempt an attempt to recognize what
 	 * user wanted to do.
+	 * @param string $token the generated email token.
 	 *
 	 * @return bool true on success otherwise false
 	 */
-	public static function send_mail( $user, $attempt = '' ) {
-		$token = md5( $user->user_email );
-		$link  = trailingslashit( home_url() ) . "?email={$user->user_email}&token={$token}";
+	public static function send_mail( $user, $attempt = '', $token = '' ) {
+		$user_mail  = urlencode( $user->user_email );
+		$link       = trailingslashit( home_url() ) . "?email={$user_mail}&token={$token}";
+		do_action( 'tutor_pro_before_prepare_email_template_data', $user_mail );
 
 		if ( '' !== $attempt ) {
 			$link .= "&attempt={$attempt}";
@@ -191,6 +196,7 @@ class EmailVerification {
 
 		$subject = __( 'Verify your Email', 'tutor-pro' );
 
+		do_action( 'tutor_pro_after_prepare_template_email_data' );
 		$email_body  = Mailer::prepare_template( $template, $data );
 		$email_body .= tutor_pro_email_global_footer();
 
@@ -221,7 +227,7 @@ class EmailVerification {
 			$userdata = get_user_by( 'email', $email );
 			if ( is_a( $userdata, 'WP_User' ) ) {
 				$existing_token = get_user_meta( $userdata->ID, self::VERIFICATION_TOKEN_META_KEY, true );
-				if ( $token === $existing_token ) {
+				if ( hash_equals( $existing_token, $token ) ) {
 
 					do_action( 'tutor_after_student_signup', $userdata->ID );
 
@@ -335,5 +341,4 @@ class EmailVerification {
 			<?php
 		}
 	}
-
 }

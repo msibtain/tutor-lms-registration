@@ -36,6 +36,13 @@ class CourseBundle implements PostInterface {
 	const BUNDLE_COURSE_IDS_META_KEY = 'bundle-course-ids';
 
 	/**
+	 * Enrolled by bundle course id
+	 *
+	 * @var string
+	 */
+	const BUNDLE_ENROLLMENT_META = '_tutor_bundle_id';
+
+	/**
 	 * Register hook
 	 *
 	 * @since 2.2.0
@@ -92,6 +99,7 @@ class CourseBundle implements PostInterface {
 			'show_in_admin_bar'  => true,
 			'show_in_rest'       => $is_enabled_gutenberg,
 			'capability_type'    => 'post',
+			'map_meta_cap'       => true,
 			'query_var'          => true,
 			'has_archive'        => true,
 			'hierarchical'       => false,

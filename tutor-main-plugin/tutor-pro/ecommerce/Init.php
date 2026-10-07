@@ -10,6 +10,8 @@
 
 namespace TutorPro\Ecommerce;
 
+use TutorPro\Ecommerce\GuestCheckout\GuestCheckout;
+
 /**
  * Init class
  */
@@ -52,6 +54,7 @@ final class Init {
 			Config::class,
 			PackageDownloader::class,
 			Invoice::class,
+			GuestCheckout::class,
 		);
 
 		foreach ( $packages as $package ) {

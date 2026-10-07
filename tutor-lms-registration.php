@@ -3,7 +3,7 @@
  * Plugin Name: Tutor LMS Registration
  * Plugin URI: https://github.com/your-repo/tutor-lms-registration
  * Description: Custom user registration shortcode that creates WordPress users with Subscriber role and Tutor LMS Instructor capabilities.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Sib
  * Author URI: https://innovisionlab.com
  * License: GPL v2 or later
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'TLR_VERSION', '1.2.0' );
+define( 'TLR_VERSION', '1.2.1' );
 define( 'TLR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TLR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -55,7 +55,15 @@ class Tutor_LMS_Registration {
 		if ( ! is_a( $post, 'WP_Post' ) ) {
 			return;
 		}
-		if ( ! has_shortcode( $post->post_content, 'tutor_registration' ) && ! has_shortcode( $post->post_content, 'student_registration' ) ) {
+
+		// Tutor dashboard / Elementor can leave post_content null; has_shortcode()
+		// would emit PHP deprecations that break Alpine JS on dashboard pages.
+		$post_content = isset( $post->post_content ) ? $post->post_content : '';
+		if ( ! is_string( $post_content ) || $post_content === '' ) {
+			return;
+		}
+
+		if ( ! has_shortcode( $post_content, 'tutor_registration' ) && ! has_shortcode( $post_content, 'student_registration' ) ) {
 			return;
 		}
 
@@ -68,11 +76,28 @@ class Tutor_LMS_Registration {
 	}
 
 	/**
+	 * Whether we are on a Tutor frontend dashboard request.
+	 *
+	 * @return bool
+	 */
+	private function is_tutor_dashboard_request() {
+		if ( function_exists( 'tutor_utils' ) && tutor_utils()->is_tutor_dashboard() ) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
 	 * Render the registration form shortcode.
 	 *
 	 * @return string
 	 */
 	public function render_registration_form() {
+		// Never inject registration markup into Tutor dashboard pages.
+		if ( $this->is_tutor_dashboard_request() ) {
+			return '';
+		}
+
 		if ( is_user_logged_in() ) {
 			return sprintf(
 				'<p class="tlr-message tlr-info">%s</p>',
@@ -111,6 +136,11 @@ class Tutor_LMS_Registration {
 	 * @return string
 	 */
 	public function render_student_registration_form() {
+		// Never inject registration markup into Tutor dashboard pages.
+		if ( $this->is_tutor_dashboard_request() ) {
+			return '';
+		}
+
 		if ( is_user_logged_in() ) {
 			return sprintf(
 				'<p class="tlr-message tlr-info">%s</p>',
@@ -226,6 +256,24 @@ class Tutor_LMS_Registration {
 	}
 
 	/**
+	 * Get the URL to redirect to after successful registration.
+	 *
+	 * @return string
+	 */
+	private function get_success_redirect_url() {
+		$redirect_url = $this->get_error_redirect_url();
+
+		/**
+		 * Filter the post-registration redirect URL.
+		 *
+		 * @param string $redirect_url Redirect target.
+		 */
+		$redirect_url = apply_filters( 'tlr_registration_success_redirect', $redirect_url );
+
+		return remove_query_arg( array( 'tlr_error', 'tlr_registered' ), $redirect_url );
+	}
+
+	/**
 	 * Output HTML for an error message (styled box with title).
 	 *
 	 * @param string $error_code Key from get_error_messages().
@@ -262,6 +310,11 @@ class Tutor_LMS_Registration {
 	 * Handle form submission (instructor and student).
 	 */
 	public function handle_form_submission() {
+		// Do not interfere with Tutor dashboard AJAX / REST requests.
+		if ( ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			return;
+		}
+
 		$is_student = isset( $_POST['tlr_register_student'] ) && isset( $_POST['tlr_register_student_nonce'] );
 		$is_instructor = isset( $_POST['tlr_register'] ) && isset( $_POST['tlr_register_nonce'] );
 
@@ -341,10 +394,18 @@ class Tutor_LMS_Registration {
 		}
 
 		if ( $is_instructor ) {
-			// Mark user as pending instructor so they appear in wp-admin → Tutor LMS → Instructor list (Pending tab).
-			// Admin must approve to grant the instructor role and _tutor_instructor_approved.
-			update_user_meta( $user_id, '_tutor_instructor_status', 'pending' );
+			// Align with Tutor's Instructor::update_instructor_meta() so dashboard
+			// gating (User::used_instructor_registration / can_view_instructor_dashboard) works.
+			$pending_status = apply_filters( 'tutor_initial_instructor_status', 'pending' );
 			update_user_meta( $user_id, '_is_tutor_instructor', tutor_time() );
+			update_user_meta( $user_id, '_tutor_instructor_status', $pending_status );
+			if ( class_exists( '\TUTOR\User' ) ) {
+				update_user_meta( $user_id, \TUTOR\User::APPLICATION_SOURCE_META, \TUTOR\User::SOURCE_INSTRUCTOR_REGISTRATION );
+			} else {
+				update_user_meta( $user_id, '_tutor_application_source', 'instructor_registration' );
+			}
+			do_action( 'tutor_new_instructor_after', $user_id );
+			do_action( 'tutor_after_instructor_signup', $user_id );
 			do_action( 'tlr_after_instructor_registration', $user_id );
 		} else {
 			// Student registration: subscriber only, no instructor meta.
@@ -355,7 +416,7 @@ class Tutor_LMS_Registration {
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id, true );
 
-		$redirect_url = remove_query_arg( array( 'tlr_error', 'tlr_registered' ), get_permalink( 394 ) );
+		$redirect_url = $this->get_success_redirect_url();
 		wp_safe_redirect( add_query_arg( 'tlr_registered', '1', $redirect_url ) );
 		exit;
 	}

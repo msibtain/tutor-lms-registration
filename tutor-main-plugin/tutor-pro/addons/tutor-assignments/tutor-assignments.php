@@ -51,6 +51,7 @@ if ( ! function_exists( 'TUTOR_ASSIGNMENTS' ) ) {
 		$info = array(
 			'path'         => plugin_dir_path( TUTOR_ASSIGNMENTS_FILE ),
 			'url'          => plugin_dir_url( TUTOR_ASSIGNMENTS_FILE ),
+			'templates'    => plugin_dir_path( TUTOR_ASSIGNMENTS_FILE ) . 'templates/',
 			'basename'     => plugin_basename( TUTOR_ASSIGNMENTS_FILE ),
 			'version'      => TUTOR_ASSIGNMENTS_VERSION,
 			'nonce_action' => 'tutor_nonce_action',
@@ -61,5 +62,5 @@ if ( ! function_exists( 'TUTOR_ASSIGNMENTS' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_ASSIGNMENTS\Init();

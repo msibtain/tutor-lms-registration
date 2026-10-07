@@ -3,8 +3,6 @@
  * 
  * @since 2.1.9
  */
-const {__} = wp.i18n;
-const defaultErrMsg = __( 'Something went wrong, please try again', 'tutor-pro' );
 const {facebook_app_id, current_user_id, logout_url} = tutorProSocialLogin;
 
 function checkLoginState() {
@@ -36,7 +34,7 @@ window.fbAsyncInit = function() {
 };
 
 function statusChangeCallback(response) {
-
+    const {__} = wp.i18n;
     if (response.status === 'connected') {
         FB.api('/me', { locale: 'en_US', fields: 'name,email,first_name,last_name,picture' }, async (payload) => {
 
@@ -96,7 +94,7 @@ function statusChangeCallback(response) {
                     tutor_toast(__("Authentication failed", "tutor-pro"), data, "error");
                 }
             } catch(err) {
-                tutor_toast(__("Authentication failed", "tutor-pro"), defaultErrMsg, "error");
+                tutor_toast(__("Authentication failed", "tutor-pro"), __( 'Something went wrong, please try again', 'tutor-pro' ), "error");
             }
     
         })
@@ -116,6 +114,7 @@ function tutorFormData(data = []) {
 
 
 async function ajaxHandler(formData) {
+    const {__} = wp.i18n;
     try {
       const post = await fetch(window._tutorobject.ajaxurl, {
         method: "POST",
@@ -123,7 +122,7 @@ async function ajaxHandler(formData) {
       });
       return post;
     } catch (error) {
-      tutor_toast(__("Operation failed", "tutor"), error, "error");
+      tutor_toast(__("Operation failed", "tutor-pro"), error, "error");
     }
 }
   

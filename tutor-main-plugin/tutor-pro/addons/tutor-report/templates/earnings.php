@@ -12,12 +12,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use TUTOR\Icon;
 use TUTOR\Input;
 use TUTOR_REPORT\Analytics;
+use Tutor\Components\Nav;
+use Tutor\Components\Constants\Size;
+use Tutor\Components\DateFilter;
 
 // global variables.
 $user        = wp_get_current_user();
-$time_period = Input::get( 'period', '' );
+$time_period = Input::get( 'period', 'today' );
 $active      = $time_period;
 $start_date  = Input::get( 'start_date', '' );
 $end_date    = Input::get( 'end_date', '' );
@@ -30,7 +34,7 @@ if ( '' !== $end_date ) {
 }
 ?>
 
-<div class="tutor-analytics-earnings">
+<div class="tutor-analytics-earnings tutor-mt-5">
 	<!--analytics graph -->
 	<?php
 		/**
@@ -42,152 +46,122 @@ if ( '' !== $end_date ) {
 		$user          = wp_get_current_user();
 		$earnings      = tutor_utils()->get_earning_sum( $user->ID );
 
-		$data = array(
+		$card_data = array(
 			array(
-				'icon'      => 'tutor-icon-wallet',
-				'title'     => $earnings->instructor_amount,
+				'icon'      => Icon::EARNING,
+				'title'     => __( 'Earnings', 'tutor-pro' ),
 				'sub_title' => __( 'Total Earning', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->instructor_amount ?? 0 ), tutor_price_allowed_html() ),
 			),
+
 			array(
-				'icon'      => 'tutor-icon-chart-pie',
-				'title'     => $earnings->balance,
+				'icon'      => Icon::WALLET,
+				'title'     => __( 'Balance', 'tutor-pro' ),
 				'sub_title' => __( 'Current Balance', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->balance ?? 0 ), tutor_price_allowed_html() ),
 			),
 			array(
-				'icon'      => 'tutor-icon-coins',
-				'title'     => $earnings->withdraws_amount,
+				'icon'      => Icon::WITHDRAW,
+				'title'     => __( 'Withdraws', 'tutor-pro' ),
 				'sub_title' => __( 'Total Withdraws', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->withdraws_amount ?? 0 ), tutor_price_allowed_html() ),
 			),
 			array(
-				'icon'      => 'tutor-icon-dollar-slot',
-				'title'     => $earnings->course_price_total,
+				'icon'      => Icon::SALE,
+				'title'     => __( 'Sale', 'tutor-pro' ),
 				'sub_title' => __( 'Total Sale', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->course_price_total ?? 0 ), tutor_price_allowed_html() ),
 			),
 			array(
-				'icon'      => 'tutor-icon-filter-dollar',
-				'title'     => $earnings->admin_amount,
+				'icon'      => Icon::COMMISSION,
+				'title'     => __( 'Commissions', 'tutor-pro' ),
 				'sub_title' => __( 'Deducted Commissions', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->admin_amount ?? 0 ), tutor_price_allowed_html() ),
 			),
 			array(
-				'icon'      => 'tutor-icon-badge-discount',
-				'title'     => $earnings->deduct_fees_amount,
+				'icon'      => Icon::FEES,
+				'title'     => __( 'Fees', 'tutor-pro' ),
 				'sub_title' => __( 'Deducted Fees', 'tutor-pro' ),
-				'price'     => true,
+				'value'     => wp_kses( tutor_utils()->tutor_price( $earnings->deduct_fees_amount ?? 0 ), tutor_price_allowed_html() ),
 			),
 		);
 
-		tutor_load_template_from_custom_path( $card_template, $data );
+		tutor_load_template_from_custom_path( $card_template, $card_data, false );
 		?>
-
 	<!--card info end -->
 
 	<!--filter buttons tabs-->
-	<?php
-		/**
-		 * Prepare filter period buttons
-		 *
-		 * Array structure is required as below
-		 *
-		 * @since 1.9.8
-		 */
-		$filter_period = array(
-			array(
-				'url'   => esc_url( tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=today' ),
-				'title' => __( 'Today', 'tutor-pro' ),
-				'class' => 'tutor-analytics-period-button',
-				'type'  => 'today',
-			),
-			array(
-				'url'   => esc_url( tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=monthly' ),
-				'title' => __( 'Monthly', 'tutor-pro' ),
-				'class' => 'tutor-analytics-period-button',
-				'type'  => 'monthly',
-			),
-			array(
-				'url'   => esc_url( tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=yearly' ),
-				'title' => __( 'Yearly', 'tutor-pro' ),
-				'class' => 'tutor-analytics-period-button',
-				'type'  => 'yearly',
-			),
-		);
+	<div class="tutor-surface-l1 tutor-mt-7 tutor-border tutor-rounded-2xl">
+		<div class="tutor-small tutor-border-b tutor-py-5 tutor-pl-6">
+			<?php esc_html_e( 'Earnings Graph', 'tutor-pro' ); ?>
+		</div>
+		<div class="tutor-flex tutor-items-center tutor-justify-between tutor-p-6 tutor-border-b">
+			<?php
+			$nav_items = array(
+				array(
+					'label'  => __( 'Today', 'tutor-pro' ),
+					'url'    => tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=today',
+					'active' => 'today' === $time_period,
+				),
+				array(
+					'label'  => __( 'Monthly', 'tutor-pro' ),
+					'url'    => tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=monthly',
+					'active' => 'monthly' === $time_period,
+				),
+				array(
+					'label'  => __( 'Yearly', 'tutor-pro' ),
+					'url'    => tutor_utils()->tutor_dashboard_url() . 'analytics/earnings?period=yearly',
+					'active' => 'yearly' === $time_period,
+				),
+			);
 
-		/**
-		 * Calendar date buttons
-		 *
-		 * Array structure is required as below
-		 *
-		 * @since 1.9.8
-		 */
+			Nav::make()->items( $nav_items )->size( Size::SMALL )->render();
 
-		$filter_period_calendar = array(
-			'filter_period'   => $filter_period,
-			'filter_calendar' => true,
-		);
+			DateFilter::make()
+				->type( DateFilter::TYPE_RANGE )
+				->hide_initial_label()
+				->placement( DateFilter::PLACEMENT_BOTTOM_END )
+				->clear_params( array( 'period' ) )
+				->render();
+			?>
+		</div>
 
-		$filter_period_calendar_template = TUTOR_REPORT()->path . 'templates/elements/period-calendar.php';
-		tutor_load_template_from_custom_path( $filter_period_calendar_template, $filter_period_calendar );
-		?>
-
-	<!--filter button tabs end-->
-
-	<!--analytics graph -->
-	<?php
+		<!--analytics graph -->
+		<?php
 		/**
 		 * Get analytics data
 		 *
 		 * @since 1.9.9
 		 */
 		$commission_fees = Analytics::commission_fees_by_user( $user->ID, $time_period, $start_date, $end_date );
-		$content_title   = '';
-	if ( 'today' === $time_period ) {
-		$day = gmdate( 'l' );
-		/* translators: %s: day */
-		$content_title = sprintf( __( 'for today (%s)', 'tutor-pro' ), $day );
-	} elseif ( 'monthly' === $time_period ) {
-		$month = gmdate( 'F' );
-		/* translators: %s: month */
-		$content_title = sprintf( __( 'for this month (%s)', 'tutor-pro' ), $month );
-	} elseif ( 'yearly' === $time_period ) {
-		$current_year = gmdate( 'Y' );
-		/* translators: %s: year */
-		$content_title = sprintf( __( 'for this year (%s)', 'tutor-pro' ), $current_year );
-	}
+
+		$earnings = Analytics::get_earnings_by_user( $user->ID, $time_period, $start_date, $end_date );
+		$sales    = Analytics::number_of_sales( $user->ID, $time_period, $start_date, $end_date );
+
 		$graph_tabs     = array(
 			array(
-				'tab_title'     => __( 'Total Earning', 'tutor-pro' ),
-				'tab_value'     => Analytics::get_earnings_by_user( $user->ID, $time_period, $start_date, $end_date )['total_earnings'],
-				'data_attr'     => 'ta_total_earnings',
-				'active'        => ' is-active',
-				'price'         => true,
-				/* translators: %s: content title */
-				'content_title' => sprintf( __( 'Earning chart %s', 'tutor-pro' ), $content_title ),
+				'tab_title'  => __( 'Total Earning', 'tutor-pro' ),
+				'tab_value'  => empty( $earnings['total_earnings'] ) ? '-' : wp_kses( tutor_utils()->tutor_price( $earnings['total_earnings'] ), tutor_price_allowed_html() ),
+				'data_attr'  => 'ta_total_earnings',
+				'graph_data' => Analytics::prepare_chart_data( $earnings['earnings'] ),
 			),
 			array(
-				'tab_title'     => __( 'Number of Sales', 'tutor-pro' ),
-				'tab_value'     => Analytics::number_of_sales( $user->ID, $time_period, $start_date, $end_date )['total_sales'],
-				'data_attr'     => 'ta_total_course_enrolled',
-				'active'        => '',
-				'price'         => false,
-				/* translators: %s: content title */
-				'content_title' => sprintf( __( 'Sales chart %s', 'tutor-pro' ), $content_title ),
+				'tab_title'  => __( 'Number of Sales', 'tutor-pro' ),
+				'tab_value'  => $sales['total_sales'] ?? '-',
+				'data_attr'  => 'ta_total_course_enrolled',
+				'graph_data' => Analytics::prepare_chart_data( $sales['sales'], false ),
 			),
 			array(
-				'tab_title'     => __( 'Commission', 'tutor-pro' ),
-				'tab_value'     => $commission_fees['total'],
-				'data_attr'     => 'ta_total_refund',
-				'active'        => '',
-				'price'         => true,
-				/* translators: %s: content title */
-				'content_title' => sprintf( __( 'Commission & fess chart %s', 'tutor-pro' ), $content_title ),
+				'tab_title'  => __( 'Commission', 'tutor-pro' ),
+				'tab_value'  => empty( $commission_fees['total'] ) ? '-' : wp_kses( tutor_utils()->tutor_price( $commission_fees['total'] ), tutor_price_allowed_html() ),
+				'data_attr'  => 'ta_total_refund',
+				'graph_data' => Analytics::prepare_chart_data( $commission_fees['commission_fees'] ),
 			),
 		);
 		$graph_template = TUTOR_REPORT()->path . 'templates/elements/graph.php';
 		tutor_load_template_from_custom_path( $graph_template, $graph_tabs );
 		?>
-	<!--analytics graph end -->    
+		<!--analytics graph end -->  
+	</div>
+	<!--filter button tabs end-->  
 </div>

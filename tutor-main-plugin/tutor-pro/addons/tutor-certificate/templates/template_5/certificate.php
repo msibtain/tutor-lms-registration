@@ -13,7 +13,7 @@
 			<td>
 				<div class="certificate-content">
 					<p><strong><?php esc_html_e( 'This is to certify that', 'tutor-pro' ); ?></strong></p>
-					<h1><?php echo esc_html( tutor_utils()->get_user_name( $user ) ); ?></h1>
+					<h1><?php echo esc_html( tutor_utils()->display_name( $user->ID ) ); ?></h1>
 					<br/>
 					<br/>
 					<br/>

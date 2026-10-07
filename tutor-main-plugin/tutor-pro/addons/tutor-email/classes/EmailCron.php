@@ -11,6 +11,7 @@
 
 namespace TUTOR_EMAIL;
 
+use Tutor\Helpers\QueryHelper;
 use TUTOR\Input;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -171,8 +172,9 @@ class EmailCron {
 		$email_notification->send_mail( $mails );
 
 		// Delete from queue.
-		$ids = implode( ',', array_column( $mails, 'id' ) );
-		$wpdb->query( "DELETE FROM {$wpdb->tutor_email_queue} WHERE id IN ({$ids})" ); //phpcs:ignore
+		$ids       = array_column( $mails, 'id' );
+		$in_clause = QueryHelper::prepare_in_clause( $ids );
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->tutor_email_queue} WHERE id IN ({$in_clause})" ) ); //phpcs:ignore
 
 		delete_transient( self::CRON_RUNNING_TRANSIENT );
 

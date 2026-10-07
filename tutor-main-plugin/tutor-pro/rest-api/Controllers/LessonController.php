@@ -15,6 +15,7 @@ namespace TutorPro\RestAPI\Controllers;
 use Exception;
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use Tutor\Models\EnrollmentModel;
 use Tutor\Models\LessonModel;
 use WP_REST_Request;
 
@@ -111,7 +112,9 @@ class LessonController extends BaseController {
 			$request->get_params(),
 			array(
 				'lesson_content' => 'wp_kses_post',
-			)
+				'source'         => 'wp_kses_post',
+			),
+			true
 		);
 
 		// Extract fillable fields.
@@ -302,7 +305,7 @@ class LessonController extends BaseController {
 
 				$this->video_params[ 'source_' . $params['video']['source_type'] ] = $params['video']['source'];
 
-				$this->video_params['runtime']['hours'] = $params['video']['runtime']['hours'] ?? 00;
+				$this->video_params['runtime']['hours']   = $params['video']['runtime']['hours'] ?? 00;
 				$this->video_params['runtime']['minutes'] = $params['video']['runtime']['minutes'] ?? 00;
 				$this->video_params['runtime']['seconds'] = $params['video']['runtime']['seconds'] ?? 00;
 
@@ -405,7 +408,7 @@ class LessonController extends BaseController {
 			);
 		}
 
-		$is_enrolled = tutor_utils()->is_enrolled( $params['course_id'], $params['student_id'] );
+		$is_enrolled = EnrollmentModel::is_enrolled( $params['course_id'], $params['student_id'] );
 		if ( $is_enrolled ) {
 			try {
 				LessonModel::mark_lesson_complete( $params['lesson_id'], $params['student_id'] );
@@ -442,12 +445,12 @@ class LessonController extends BaseController {
 	 * @return boolean
 	 */
 	private function is_valid_video_source_type( string $source_type ): bool {
-		// Unset embedded source.
-		if ( tutor_is_rest() ) {
-			unset( $this->supported_video_sources[4] );
+		$supported_types = tutor_utils()->get_option( 'supported_video_sources', array() );
+		if ( is_string( $supported_types ) ) {
+			$supported_types = array( $supported_types );
 		}
 
-		return in_array( $source_type, $this->supported_video_sources, true );
+		return in_array( $source_type, $supported_types, true );
 	}
 
 	/**
@@ -467,10 +470,8 @@ class LessonController extends BaseController {
 
 			if ( '' === $video_source_type ) {
 				$errors['video_source_type'] = __( 'Video source type is required', 'tutor-pro' );
-			} else {
-				if ( ! $this->is_valid_video_source_type( $video_source_type ) ) {
-					$errors['video_source_type'] = __( 'Invalid video source type', 'tutor-pro' );
-				}
+			} elseif ( ! $this->is_valid_video_source_type( $video_source_type ) ) {
+				$errors['video_source_type'] = __( 'Invalid video source type', 'tutor-pro' );
 			}
 
 			if ( '' === $video_source ) {
@@ -513,6 +514,4 @@ class LessonController extends BaseController {
 
 		return ValidationHelper::validate( $validation_rules, $data );
 	}
-
 }
-

@@ -10,9 +10,11 @@
 
 namespace TUTOR_PRO;
 
+use TUTOR\Icon;
 use Tutor\Helpers\QueryHelper;
 use Tutor\Helpers\SessionHelper;
 use TUTOR\Input;
+use Tutor\Traits\JsonResponse;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,6 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * DeviceManagement class
  */
 class DeviceManagement {
+	use JsonResponse;
 
 	/**
 	 * Page slug
@@ -78,6 +81,7 @@ class DeviceManagement {
 			return;
 		}
 
+		add_action( 'wp_enqueue_scripts', __CLASS__ . '::enqueue_scripts' );
 		add_filter( 'authenticate', __CLASS__ . '::validate_limit_login', 100 );
 		add_filter( 'tutor_dashboard/nav_items/settings/nav_items', __CLASS__ . '::register_nav' );
 		add_filter( 'load_dashboard_template_part_from_other_location', __CLASS__ . '::load_template' );
@@ -90,11 +94,25 @@ class DeviceManagement {
 
 		add_action( 'wp_ajax_tutor_remove_device_manually', __CLASS__ . '::remove_device_manually' );
 		add_action( 'wp_ajax_tutor_clear_active_sessions', __CLASS__ . '::clear_active_sessions' );
+		add_action( 'wp_ajax_tutor_remove_all_active_logins', array( $this, 'remove_all_active_logins_except_current' ) );
 		add_action( 'wp_ajax_nopriv_tutor_remove_all_active_logins', __CLASS__ . '::remove_all_active_logins' );
 
 		add_action( 'tutor_after_student_signup', __CLASS__ . '::add_new_login_device' );
 		add_action( 'tutor_after_instructor_signup', __CLASS__ . '::add_new_login_device' );
+	}
 
+	/**
+	 * Enqueue scripts
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public static function enqueue_scripts() {
+		if ( ! tutor_utils()->is_tutor_frontend_dashboard( 'account/settings' ) ) {
+			return;
+		}
+		wp_enqueue_script( 'tutor-device-management', tutor_pro()->url . 'assets/js/device-management.js', array( 'tutor-core', 'wp-i18n' ), TUTOR_PRO_VERSION, true );
 	}
 
 	/**
@@ -145,20 +163,24 @@ class DeviceManagement {
 			}
 		}
 
+		// If user has no device then return.
+		// This will allow guest checkout.
+		if ( empty( $devices ) ) {
+			return;
+		}
+
 		if ( false === $has_session ) {
 			wp_logout();
-		} else {
+		} elseif ( ! is_null( $current_device ) ) {
 			// Update current user last active time.
-			if ( ! is_null( $current_device ) ) {
-				$info             = json_decode( $current_device->meta_value );
-				$info->login_time = tutor_time();
+			$info             = json_decode( $current_device->meta_value );
+			$info->login_time = tutor_time();
 
-				global $wpdb;
-				$table = $wpdb->usermeta;
-				$where = array( 'umeta_id' => $current_device->umeta_id );
+			global $wpdb;
+			$table = $wpdb->usermeta;
+			$where = array( 'umeta_id' => $current_device->umeta_id );
 
-				QueryHelper::update( $table, array( 'meta_value' => json_encode( $info ) ), $where );
-			}
+			QueryHelper::update( $table, array( 'meta_value' => json_encode( $info ) ), $where );
 		}
 	}
 
@@ -247,7 +269,6 @@ class DeviceManagement {
 		}
 
 		return self::$fingerprint;
-
 	}
 
 	/**
@@ -428,17 +449,36 @@ class DeviceManagement {
 			return $tabs;
 		}
 
-		$nav_link = tutor_utils()->get_tutor_dashboard_page_permalink( 'settings/' . self::SLUG );
-
 		$new_tab = array(
-			'url'   => esc_url( $nav_link ),
-			'title' => __( 'Manage Login Sessions', 'tutor' ),
-			'role'  => false,
+			'id'       => self::SLUG,
+			'label'    => __( 'Manage Devices', 'tutor-pro' ),
+			'icon'     => Icon::DEVICES,
+			'text'     => __( 'Manage Login Sessions', 'tutor-pro' ),
+			'template' => 'device-management',
+			'is_pro'   => true,
+			'role'     => false,
 		);
 
-		$tabs[ self::SLUG ] = $new_tab;
+		$new_tabs = array();
+		$inserted = false;
 
-		return apply_filters( 'tutor_manage_device_nav', $tabs );
+		foreach ( $tabs as $key => $tab ) {
+
+			$new_tabs[ $key ] = $tab;
+
+			// Insert after social accounts tab if it exists.
+			if ( 'social-accounts' === $key && ! $inserted ) {
+				$new_tabs[ self::SLUG ] = $new_tab;
+				$inserted               = true;
+			}
+		}
+
+		// Fallback: append at the end if target tab was not found.
+		if ( ! $inserted ) {
+			$new_tabs[ self::SLUG ] = $new_tab;
+		}
+
+		return apply_filters( 'tutor_manage_device_nav', $new_tabs );
 	}
 
 	/**
@@ -516,7 +556,6 @@ class DeviceManagement {
 			SessionHelper::set( self::USER_ID_KEY, $user->ID );
 			return new WP_Error( 'tutor_login_limit', $alert_msg );
 		}
-
 	}
 
 	/**
@@ -694,7 +733,7 @@ class DeviceManagement {
 			$delete = QueryHelper::delete( $table, $where );
 
 			if ( $delete ) {
-				$response['msg'] = __( 'Device removed successfully!' );
+				$response['msg'] = __( 'Device removed successfully!', 'tutor-pro' );
 
 				$device_fingerprint = str_replace( self::LOGIN_INFO_KEY, '', $meta->meta_key );
 
@@ -706,7 +745,7 @@ class DeviceManagement {
 
 				wp_send_json_success( $response );
 			} else {
-				$response['msg'] = __( 'Device removed failed!' );
+				$response['msg'] = __( 'Device removed failed!', 'tutor-pro' );
 				wp_send_json_error( $response );
 			}
 		} else {
@@ -814,5 +853,91 @@ class DeviceManagement {
 		} else {
 			wp_send_json_error( __( 'Invalid User ID', 'tutor-pro' ) );
 		}
+	}
+
+	/**
+	 * Remove all active logins except current session
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void wp_json response
+	 */
+	public function remove_all_active_logins_except_current() {
+		tutor_utils()->check_nonce();
+
+		$user = wp_get_current_user();
+
+		if ( ! $user ) {
+			$this->response_bad_request( tutor_utils()->error_message() );
+		}
+
+		// Check if limit login is applicable for this user.
+		if ( ! self::is_applicable_limit_login( $user->roles ) ) {
+			$this->response_bad_request( tutor_utils()->error_message() );
+		}
+
+		global $wpdb;
+
+		$user_id             = $user->ID;
+		$current_fingerprint = self::get_current_device_fingerprint();
+		$meta_key            = self::LOGIN_INFO_KEY;
+		$current_device_key  = self::LOGIN_INFO_KEY . $current_fingerprint;
+
+		// Delete all sessions except the current one.
+		$delete = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE
+                FROM {$wpdb->usermeta}
+                WHERE meta_key LIKE %s
+                    AND meta_key != %s
+                    AND user_id = %d
+            ",
+				"%$meta_key%",
+				$current_device_key,
+				$user_id
+			)
+		);
+
+		if ( false !== $delete ) {
+			$this->json_response( __( 'All other active sessions have been removed!', 'tutor-pro' ) );
+		} else {
+			$this->response_bad_request( __( 'Failed to remove other sessions. Please try again!', 'tutor-pro' ) );
+		}
+	}
+
+	/**
+	 * Get Icon based on device and os type
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $device device name.
+	 * @param string $os os name.
+	 *
+	 * @return string
+	 */
+	public static function get_icon( $device, $os ) {
+		// Mobile devices.
+		if ( 'Mobile' === $device ) {
+			if ( 'Android' === $os ) {
+				return Icon::ANDROID_PHONE;
+			} elseif ( 'iOS' === $os ) {
+				return Icon::IOS_PHONE;
+			}
+		}
+
+		// Tablet devices.
+		if ( 'Tablet' === $device ) {
+			return Icon::IPAD_TABLET;
+		}
+
+		// Laptop/Desktop devices.
+		if ( 'Windows' === $os ) {
+			return Icon::WINDOWS;
+		} elseif ( 'Mac' === $os ) {
+			return Icon::MAC;
+		}
+
+		// Default fallback.
+		return Icon::MAC;
 	}
 }

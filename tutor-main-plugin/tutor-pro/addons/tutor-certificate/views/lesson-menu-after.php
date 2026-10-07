@@ -34,6 +34,6 @@ if ( ! $has_access ) {
 }
 ?>
 
-<a href="<?php echo esc_url( add_query_arg( array( 'regenerate' => 1 ), $certificate_url ) ); ?>" class="tutor-btn tutor-btn-primary tutor-btn-block tutor-mb-20 tutor-btn-view-certificate">
+<a href="<?php echo esc_url( $certificate_url ); ?>" class="tutor-btn tutor-btn-primary tutor-btn-block tutor-mb-20 tutor-btn-view-certificate">
 	<?php esc_html_e( 'View Certificate', 'tutor-pro' ); ?>
 </a>

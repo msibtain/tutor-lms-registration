@@ -11,14 +11,8 @@
 
 namespace TUTOR_GC;
 
-use \Google_Service_Classroom;
-use \Google_Client;
-
-use \Google_Service_Script;
-use \Google_Service_Script_CreateProjectRequest;
-use \Google_Service_Script_ScriptFile;
-use \Google_Service_Script_Content;
-use \Google_Service_Script_ExecutionRequest;
+use Google_Service_Classroom;
+use Google_Client;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -41,13 +35,13 @@ class Classroom {
 	private $current_credential;
 	private $credential_owner;
 
-	private $gc_user_identifier        = 'tutor_gc_user_from_class';
+	public $gc_user_identifier         = 'tutor_gc_user_from_class';
 	private $gc_post_time              = 'tutor_gc_post_time';
 	private $remote_class              = 'tutor_gc_remote_class_cache';
 	private $remote_class_owner        = 'tutor_gc_remote_class_owner';
 	private $course_credential         = 'tutor_gc_engaged_credential_serial';
 	private $credential_serial         = 'tutor_gc_user_current_credential_serial';
-	private $classroom_key             = 'tutor_gc_classroom_id';
+	public $classroom_key              = 'tutor_gc_classroom_id';
 	private $temporary_password        = 'tutor_gc_temp_raw_password';
 	public static $password_reset_base = 'tutor-student-password-reset';
 
@@ -430,12 +424,7 @@ class Classroom {
 
 		// Register students.
 		if ( $enroll_student ) {
-			$student_ids = $this->register_students( $course );
-
-			// Enroll students.
-			foreach ( $student_ids as $user_id ) {
-				tutor_utils()->do_enroll( $post_id, 0, $user_id );
-			}
+			$this->register_students( $course );
 		}
 
 		return $post_id;
@@ -463,7 +452,7 @@ class Classroom {
 		$post =
 		array(
 			'post_author'    => get_current_user_id(),
-			'post_title'     => $course->descriptionHeading,
+			'post_title'     => $course->name ?? '',
 			'post_content'   => $course->description ? $course->description : '',
 			'post_status'    => 'draft',
 			'comment_status' => 'closed',
@@ -514,8 +503,11 @@ class Classroom {
 			if ( is_object( $user_data ) ) {
 				$user_id = $user_data->ID;
 
-				$temp_pass                = get_user_meta( $user_id, $this->temporary_password, true );
-				! $temp_pass ? $temp_pass = '' : 0;
+				$temp_pass = get_user_meta( $user_id, $this->temporary_password, true );
+
+				if ( empty( $temp_pass ) ) {
+					return false;
+				}
 
 				$valid = wp_check_password( $temp_pass, $hash );
 
@@ -546,6 +538,8 @@ class Classroom {
 		if ( $user_id && is_numeric( $user_id ) ) {
 			wp_set_password( $password, $user_id );
 			delete_user_meta( $user_id, $this->temporary_password );
+		} else {
+			return new \WP_Error( 'reset_token_error', __( 'Reset token is not valid', 'tutor-pro' ) );
 		}
 	}
 
@@ -574,7 +568,7 @@ class Classroom {
 		foreach ( $students as $student ) {
 			$email_address = $student->profile->emailAddress;
 			$full_name     = $student->profile->name->fullName;
-			$password      = substr( str_shuffle( str_repeat( $x = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil( 8 / strlen( $x ) ) ) ), 1, 8 );
+			$password      = wp_generate_password();
 
 			$existing = get_user_by( 'user_email', $email_address );
 

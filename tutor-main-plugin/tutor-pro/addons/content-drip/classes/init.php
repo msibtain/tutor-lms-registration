@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 //phpcs:ignore
-class init {
+class Init {
 	//phpcs:disable
 	public $version = TUTOR_CONTENT_DRIP_VERSION;
 	public $path;

@@ -12,6 +12,7 @@
 namespace TUTOR_CERT;
 
 use TUTOR\Input;
+use TUTOR\User;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -58,8 +59,24 @@ class Instructor_Signature {
 	 */
 	public function __construct( $register_hooks = true ) {
 		if ( $register_hooks ) {
+			add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 			add_action( 'tutor_profile_edit_input_after', array( $this, 'custom_signature_field' ) );
 			add_action( 'tutor_profile_update_before', array( $this, 'save_custom_signature' ) );
+			add_filter( 'tutor_profile_default_values', array( $this, 'add_signature_to_default_values' ), 10, 2 );
+		}
+	}
+
+	/**
+	 * Enqueue scripts.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public function enqueue_scripts() {
+		// Enqueue media scripts only for account settings page.
+		if ( tutor_utils()->is_dashboard_page( 'account/settings' ) ) {
+			wp_enqueue_media();
 		}
 	}
 
@@ -72,7 +89,7 @@ class Instructor_Signature {
 	 */
 	public function custom_signature_field( $user ) {
 
-		if ( ! $user || ! is_object( $user ) || ! tutor_utils()->is_instructor( $user->ID, true ) ) {
+		if ( ! User::is_instructor_view() ) {
 			// It is non instructor user.
 			return;
 		}
@@ -117,5 +134,33 @@ class Instructor_Signature {
 			'id'  => $valid ? $id : null,
 			'url' => $valid ? wp_get_attachment_url( $id ) : null,
 		);
+	}
+
+	/**
+	 * Add signature to default values.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array    $default_values default values.
+	 * @param \WP_User $user user.
+	 *
+	 * @return array
+	 */
+	public function add_signature_to_default_values( $default_values, $user ) {
+		if ( $user && tutor_utils()->is_instructor( $user->ID, true ) ) {
+			$signature = $this->get_instructor_signature( $user->ID );
+
+			if ( ! empty( $signature['id'] ) ) {
+				$default_values[ $this->file_id_string ] = array(
+					'id'    => $signature['id'],
+					'url'   => $signature['url'],
+					'title' => __( 'Instructor Signature', 'tutor-pro' ),
+				);
+			} else {
+				$default_values[ $this->file_id_string ] = '';
+			}
+		}
+
+		return $default_values;
 	}
 }

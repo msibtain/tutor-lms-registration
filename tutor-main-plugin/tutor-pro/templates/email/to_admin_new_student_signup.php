@@ -14,7 +14,7 @@
 
 <head>
 	<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-	<?php require TUTOR_EMAIL()->path . 'views/email_styles.php'; ?>
+	<?php require TUTOR()->path . 'templates/email/email_styles.php'; ?>
 </head>
 
 <body>
@@ -37,10 +37,11 @@
 					</tr>
 				</table>
 
-
+				<?php if ( 'private' !== tutor_utils()->get_option( 'student_public_profile_layout' ) ) : ?>
 				<div class="tutor-email-buttons">
 					<a target="_blank" class="tutor-email-button" href="{profile_url}" data-source="email-btn-url"><?php esc_html_e( 'See Full Profile', 'tutor-pro' ); ?></a>
 				</div>
+				<?php endif; ?>
 
 			</div>
 			<?php require TUTOR_PRO()->path . 'templates/email/email_footer.php'; ?>

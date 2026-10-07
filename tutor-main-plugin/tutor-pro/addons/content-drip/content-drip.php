@@ -62,5 +62,5 @@ if ( ! function_exists( 'TUTOR_CONTENT_DRIP' ) ) {
 	}
 }
 
-require 'classes/init.php';
-new \TUTOR_CONTENT_DRIP\init();
+require 'classes/Init.php';
+new \TUTOR_CONTENT_DRIP\Init();

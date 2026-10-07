@@ -10,7 +10,7 @@
 
 namespace TUTOR_PRO;
 
-use TUTOR\Input;
+use TUTOR\Permalink;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -43,6 +43,11 @@ class Admin {
 	 * Constructor When TutorLMS regular version exists
 	 */
 	public function load_constructor() {
+		add_action( 'upgrader_process_complete', array( $this, 'set_permalink_flag_on_upgrade' ), 10, 2 );
+		add_action( 'tutor_addon_after_enable', array( $this, 'set_permalink_flag_on_addon_enable' ) );
+
+		// Plugin Row Meta.
+		add_filter( 'plugin_row_meta', array( $this, 'plugin_row_meta' ), 10, 2 );
 	}
 
 	/**
@@ -111,7 +116,7 @@ class Admin {
 						</a>
 						<?php esc_html_e( 'Free version installed and activated on this website in order to use Tutor LMS Pro.', 'tutor-pro' ); ?>
 					</p>
-					<a href="https://docs.themeum.com/tutor-lms/" target="_blank">
+					<a href="https://tutorlms.com/docs/" target="_blank">
 						<?php esc_html_e( 'Learn more about Tutor LMS', 'tutor-pro' ); ?>
 					</a>
 				</div>
@@ -141,7 +146,7 @@ class Admin {
 				<div class="tutor-install-notice-content">
 					<h2>Thanks for using Tutor LMS Pro</h2>
 					<p>You must have <a href="https://wordpress.org/plugins/tutor/" target="_blank">Tutor LMS </a> Free version installed and activated on this website in order to use Tutor LMS Pro.</p>
-					<a href="https://docs.themeum.com/tutor-lms/" target="_blank">Learn more about Tutor LMS</a>
+					<a href="https://tutorlms.com/docs/" target="_blank">Learn more about Tutor LMS</a>
 				</div>
 				<div class="tutor-install-notice-button">
 					<a class="install-tutor-button tutor-btn" data-slug="tutor" href="<?php echo esc_url( add_query_arg( array( 'action' => 'install_tutor_free' ), admin_url() ) ); ?>">Install Tutor LMS</a>
@@ -207,8 +212,11 @@ class Admin {
 			wp_die( esc_html( $api ) );
 		}
 
-		//phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment
-		$title = sprintf( __( 'Installing Plugin: %s' ), $api->name . ' ' . $api->version );
+		$title = sprintf(
+			// translators: %s: plugin name.
+			__( 'Installing Plugin: %s', 'tutor-pro' ),
+			$api->name . ' ' . $api->version
+		);
 		$nonce = 'install-plugin_' . $plugin;
 		$url   = 'update.php?action=install-plugin&plugin=' . urlencode( $plugin );
 
@@ -217,4 +225,77 @@ class Admin {
 		die();
 	}
 
+	/**
+	 * Flush Tutor permalink rewrite rules after updates.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param mixed $upgrader_object Upgrader instance.
+	 * @param array $options      Extra arguments passed to the hook.
+	 *
+	 * @return void
+	 */
+	public function set_permalink_flag_on_upgrade( $upgrader_object, $options ) {
+		Permalink::set_permalink_reset_flag(
+			$upgrader_object,
+			$options,
+			tutor_pro()->basename,
+			'tutor-pro'
+		);
+	}
+
+
+
+	/**
+	 * Set/reset the Tutor permalink flag when the addon is enabled.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $addon Addon file string.
+	 *
+	 * @return void
+	 */
+	public function set_permalink_flag_on_addon_enable( string $addon ): void {
+		$addons = array(
+			'tutor-pro/addons/tutor-assignments/tutor-assignments.php',
+			'tutor-pro/addons/tutor-zoom/tutor-zoom.php',
+			'tutor-pro/addons/google-meet/google-meet.php',
+		);
+
+		if ( in_array( $addon, $addons, true ) ) {
+			Permalink::set_permalink_flag();
+		}
+	}
+
+	/**
+	 * Add plugin meta data in WP plugins list page
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array  $plugin_meta plugin meta data.
+	 * @param string $plugin_file plugin file.
+	 *
+	 * @return array
+	 */
+	public function plugin_row_meta( $plugin_meta, $plugin_file ) {
+		if ( tutor_pro()->basename === $plugin_file ) {
+			$plugin_meta[] = sprintf(
+				'<a href="%s"><strong style="color: #03bd24">%s</strong></a>',
+				esc_url( 'https://tutorlms.com/docs/' ),
+				esc_html__( 'Documentation', 'tutor-pro' )
+			);
+			$plugin_meta[] = sprintf(
+				'<a href="%s"><strong style="color: #03bd24">%s</strong></a>',
+				esc_url( 'https://tutorlms.com/free-vs-pro/' ),
+				esc_html__( 'Pro Features', 'tutor-pro' )
+			);
+			$plugin_meta[] = sprintf(
+				'<a href="%s"><strong style="color: #03bd24">%s</strong></a>',
+				esc_url( 'https://www.themeum.com/support/' ),
+				esc_html__( 'Priority Support', 'tutor-pro' )
+			);
+		}
+
+		return $plugin_meta;
+	}
 }

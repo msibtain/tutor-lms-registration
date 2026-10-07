@@ -55,6 +55,7 @@ class _2FA {
 		if ( 'tutor-2fa' === Input::get( 'step' ) && null !== SessionHelper::get( 'tutor_login_otp' ) ) {
 			$template = tutor_auth()->views . 'login-otp.php';
 			if ( file_exists( $template ) ) {
+				remove_all_filters( 'template_include' );
 				return $template;
 			}
 		}
@@ -67,7 +68,7 @@ class _2FA {
 	 *
 	 * @since 2.1.9
 	 *
-	 * @return void
+	 * @return string
 	 */
 	public function get_login_otp_page_url() {
 		return get_home_url() . '?step=tutor-2fa';

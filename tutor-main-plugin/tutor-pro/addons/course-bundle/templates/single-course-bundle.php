@@ -9,8 +9,10 @@
  * @since 2.2.0
  */
 
+defined( 'ABSPATH' ) || exit;
+
+use Tutor\Models\EnrollmentModel;
 use TutorPro\CourseBundle\CustomPosts\ManagePostMeta;
-use TutorPro\CourseBundle\MetaBoxes\BundlePrice;
 use TutorPro\CourseBundle\Models\BundleModel;
 use TutorPro\CourseBundle\Utils;
 
@@ -25,7 +27,7 @@ $is_bundle_creator = $user_id === $post_author_id;
 
 
 if ( ! $is_enrolled ) {
-	$is_enrolled = tutor_utils()->is_enrolled( $course_id, get_current_user_id() );
+	$is_enrolled = EnrollmentModel::is_enrolled( $course_id, get_current_user_id() );
 }
 
 $is_public = \TUTOR\Course_List::is_public( $course_id );
@@ -59,13 +61,13 @@ $thumb_url = get_tutor_course_thumbnail_src( 'post-thumbnail', $course_id );
 					<?php
 					$bundle_course_ids = BundleModel::get_bundle_course_ids( $course_id );
 					$ribbon_type       = ManagePostMeta::get_ribbon_type( $course_id );
-					$bundle_sale_price = BundlePrice::get_bundle_sale_price( $course_id );
+					$bundle_sale_price = BundleModel::get_bundle_sale_price( $course_id );
 					?>
 						<!-- Show bundle discount badge -->
 						<?php if ( BundleModel::RIBBON_NONE !== $ribbon_type && $bundle_sale_price > 0 ) : ?>
 						<div class="tutor-bundle-discount-info">
 							<div class="tutor-bundle-save-text"><?php esc_html_e( 'SAVE', 'tutor-pro' ); ?></div>
-							<div class="tutor-bundle-save-amount"><?php echo esc_html( BundlePrice::get_bundle_discount_by_ribbon( $course_id, $ribbon_type ) ); ?></div>
+							<div class="tutor-bundle-save-amount"><?php echo esc_html( BundleModel::get_bundle_discount_by_ribbon( $course_id, $ribbon_type ) ); ?></div>
 						</div>
 						<?php endif; ?>
 				</div>
@@ -81,7 +83,6 @@ $thumb_url = get_tutor_course_thumbnail_src( 'post-thumbnail', $course_id );
 
 				<div class="tutor-course-details-tab tutor-mt-32">
 					<div class="tutor-tab tutor-pt-24">
-
 						<div>
 							<?php
 								tutor_course_content();
@@ -92,6 +93,8 @@ $thumb_url = get_tutor_course_thumbnail_src( 'post-thumbnail', $course_id );
 								<?php require_once Utils::template_path( 'single/bundle-courses.php' ); ?>
 							</div>
 						</div>
+
+						<?php do_action( 'tutor_bundle_single_after_courses', $course_id ); ?>
 					</div>
 				</div>
 			</main>

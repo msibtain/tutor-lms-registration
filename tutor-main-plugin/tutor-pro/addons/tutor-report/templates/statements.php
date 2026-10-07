@@ -9,178 +9,181 @@
  * @since 1.9.9
  */
 
+defined( 'ABSPATH' ) || exit;
+
+use TUTOR_REPORT\Analytics;
+use Tutor\Components\Button;
+use Tutor\Components\Constants\Size;
+use Tutor\Components\Constants\Variant;
+use Tutor\Components\CourseFilter;
+use Tutor\Components\DateFilter;
+use Tutor\Components\EmptyState;
+use Tutor\Components\Pagination;
+use Tutor\Components\Sorting;
+use Tutor\Components\Table;
+use Tutor\Ecommerce\Tax;
+use Tutor\Helpers\QueryHelper;
 use TUTOR\Input;
 use Tutor\Models\CourseModel;
-use TUTOR_REPORT\Analytics;
 
-//phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited
-global $wp_query, $wp;
+$user                = wp_get_current_user();
+$current_page        = max( 1, Input::get( 'current_page', 0, Input::TYPE_INT ) );
+$pagination_per_page = tutor_utils()->get_option( 'pagination_per_page' );
+$offset              = ( $pagination_per_page * $current_page ) - $pagination_per_page;
 
-$user     = wp_get_current_user();
-$url      = home_url( $wp->request );
-$url_path = parse_url( $url, PHP_URL_PATH );
-$paged    = max( 1, Input::get( 'current_page', 0, Input::TYPE_INT ) );
-$per_page = tutor_utils()->get_option( 'pagination_per_page' );
-$offset   = ( $per_page * $paged ) - $per_page;
+$order_by     = Input::get( 'order', '' );
+$course_id    = Input::get( 'course-id', '' );
+$order_filter = QueryHelper::get_valid_sort_order( $order_by ?? 'DESC' );
+$start_date   = Input::get( 'start_date', '' );
+$end_date     = Input::get( 'end_date', '' );
 
-$course_id   = Input::get( 'course-id', '' );
-$date_filter = Input::get( 'date', '' );
-if ( '' !== $date_filter ) {
-	$date_filter = tutor_get_formated_date( 'Y-m-d', $date_filter );
-}
+$statements    = Analytics::get_statements_by_user( $user->ID, $offset, $pagination_per_page, $course_id, $start_date, $end_date, $order_filter );
+$courses       = CourseModel::get_courses_by_instructor( $user->ID, array( 'publish', 'private' ) );
+$total_courses = ! empty( $courses ) && empty( $course_id ) ? count( $courses ) : $statements['total_statements'];
 
-//phpcs:enable WordPress.WP.GlobalVariablesOverride.Prohibited
-
-$statements            = Analytics::get_statements_by_user( $user->ID, $offset, $per_page, $course_id, $date_filter );
-$courses               = CourseModel::get_courses_by_instructor();
-$enable_fees_deducting = tutor_utils()->get_option( 'enable_fees_deducting' );
+$filter_count      = count( array_filter( array( $course_id, $start_date, $end_date, $order_by ) ) );
+$clear_button_text = $filter_count > 1 ? __( 'Clear All', 'tutor-pro' ) : __( 'Clear', 'tutor-pro' );
 ?>
-<div class="tutor-analytics-statements">
-	<div class="tutor-row tutor-gx-xl-5 tutor-mb-24">
-		<div class="tutor-col-lg-8 tutor-mb-16 tutor-mb-lg-0">
-			<label class="tutor-form-label">
-				<?php esc_html_e( 'Courses', 'tutor-pro' ); ?>
-			</label>
-			<select class="tutor-form-select tutor-report-category tutor-announcement-course-sorting" data-searchable>
-				<option value=""><?php esc_html_e( 'All', 'tutor-pro' ); ?></option>
-				<?php if ( $courses ) : ?>
-					<?php foreach ( $courses as $course ) : ?>
-						<option value="<?php echo esc_attr( $course->ID ); ?>" <?php selected( $course_id, $course->ID, 'selected' ); ?>>
-							<?php echo esc_html( $course->post_title ); ?>
-						</option>
-					<?php endforeach; ?>
-				<?php else : ?>
-					<option value=""><?php esc_html_e( 'No course found', 'tutor-pro' ); ?></option>
-				<?php endif; ?>
-			</select>
-		</div>
 
-		<div class="tutor-col-lg-4">
-			<label class="tutor-form-label"><?php esc_html_e( 'Date', 'tutor-pro' ); ?></label>
-			<div class="tutor-v2-date-picker"></div>
+<div class="tutor-analytics-statements tutor-surface-l1 tutor-mt-5 tutor-border tutor-rounded-2xl tutor-overflow-hidden">
+	<!-- Filters -->
+	<div class="tutor-flex tutor-items-center tutor-justify-between tutor-py-5 tutor-px-6 tutor-border-b">
+		<?php
+		CourseFilter::make()
+			->courses( $courses )
+			->count( $total_courses )
+			->variant( Variant::LINK )
+			->render()
+		?>
+		<div class="tutor-flex tutor-items-center tutor-gap-3">
+			<?php
+			if ( $filter_count > 0 ) {
+				Button::make()
+				->tag( 'a' )
+				->attr( 'href', tutor_utils()->tutor_dashboard_url() . 'analytics/statements' )
+				->attr( 'class', 'tutor-text-brand' )
+				->label( $clear_button_text )
+				->variant( Variant::LINK )
+				->render();
+			}
+			?>
+			<?php
+			DateFilter::make()
+				->type( DateFilter::TYPE_RANGE )
+				->trigger_size( Size::X_SMALL )
+				->placement( DateFilter::PLACEMENT_BOTTOM_END )
+				->hide_initial_label()
+				->render();
+			?>
+
+			<?php Sorting::make()->order( $order_filter )->render(); ?>
 		</div>
 	</div>
+	<!-- Filters -->
 
-	<?php if ( count( $statements['statements'] ) ) : ?>
-		<div class="tutor-table-responsive">
-			<table class="tutor-table tutor-table-analytics-statement">
-				<thead>
-					<th>
-						<?php esc_html_e( 'Statement Info', 'tutor-pro' ); ?>
-					</th>
-					<th>
-						<?php esc_html_e( 'My Earnings', 'tutor-pro' ); ?>
-					</th>
-					<th>
-						<?php esc_html_e( 'Admin Gets', 'tutor-pro' ); ?>
-					</th>
-					<?php if ( $enable_fees_deducting ) : ?>
-					<th>
-						<?php esc_html_e( 'Fees', 'tutor-pro' ); ?>
-					</th>
-					<?php endif; ?>
-				</thead>
-
-				<tbody>
-					<?php foreach ( $statements['statements'] as $statement ) : ?>
-						<?php
-							$wc_order = function_exists( 'wc_get_order' ) ? wc_get_order( $statement->order_id ) : false;
-							$customer = $wc_order ? $wc_order->get_user() : null;
-						?>
-						<tr>
-							<td>
-								<div class="td-statement-info">
-									<div class="tutor-d-flex tutor-align-center">
-										<span class="tutor-badge-label label-<?php echo esc_attr( 'completed' === $statement->order_status ? 'success' : $statement->order_status ); ?>">
-											<?php echo esc_html( ucfirst( $statement->order_status ) ); ?>
-										</span>
-										<span class="tutor-fs-7 tutor-color-secondary tutor-ml-16">
-											<?php echo esc_html( tutor_get_formated_date( get_option( 'date_format' ), $statement->created_at ) ); ?>
-										</span>
-									</div>
-
-									<div class="tutor-mt-8">
-										<?php echo esc_html( $statement->course_title ); ?>
-									</div>
-
-									<div class="tutor-meta tutor-mt-8">
-										<span>
-											<span class="tutor-meta-key"><?php esc_html_e( 'Order ID: #', 'tutor-pro' ); ?></span>
-											<span class="tutor-meta-value"><?php echo esc_html( $statement->order_id ); ?></span>
-										</span>
-
-										<?php if ( is_a( $customer, 'WP_User' ) ) : ?>
-										<span>
-											<span class="tutor-meta-key"><?php esc_html_e( 'Purchaser:', 'tutor-pro' ); ?></span>
-											<span class="tutor-meta-value"><?php echo esc_html( tutils()->get_user_name( $customer ) ); ?></span>
-										</span>
-										<?php endif; ?>
-									</div>
-								</div>
-							</td>
-
-							<td>
-								<?php $instructor_commission_type = 'percent' === $statement->commission_type ? '%' : ''; ?>
-								<div class="tutor-fs-7 tutor-fw-medium tutor-color-black">
-									<?php echo wp_kses_post( tutor_utils()->tutor_price( $statement->instructor_amount ) ); ?> <br />
-									<span class="tutor-fs-7 tutor-color-muted">
-										<?php
-											echo wp_kses_post( $statement->instructor_rate . $instructor_commission_type . __( ' of ', 'tutor-pro' ) . tutor_utils()->tutor_price( $statement->course_price_total ) );
-										?>
-									</span>
-								</div>
-							</td>
-
-							<td>
-								<?php $admin_rate_type = 'percent' === $statement->commission_type ? '%' : ''; ?>
-								<div class="tutor-fs-7 tutor-fw-medium tutor-color-black">
-									<?php echo wp_kses_post( tutor_utils()->tutor_price( $statement->admin_amount ) ); ?> <br />
-									<span class="tutor-fs-7 tutor-color-muted">
-										<?php
-											/* translators: 1: rate 2: rate type */
-											echo esc_html( sprintf( __( 'As per %1$d%2$s', 'tutor-pro' ), $statement->admin_rate, $admin_rate_type ) );
-										?>
-									</span>
-								</div>
-							</td>
-
-							<?php if ( $enable_fees_deducting ) : ?>
-							<td>
-								<?php $service_rate_type = 'percent' === $statement->deduct_fees_type ? '%' : ''; ?>
-								<div class="tutor-fs-7 tutor-fw-medium tutor-color-black">
-									<?php echo wp_kses_post( tutor_utils()->tutor_price( $statement->deduct_fees_amount ) ); ?> <br />
-									<span class="tutor-fs-7 tutor-color-muted">
-										<?php
-										if ( empty( $statement->deduct_fees_name ) ) {
-											esc_html_e( 'Maintenance Fees', 'tutor-pro' );
-										} else {
-											esc_html_e( $statement->deduct_fees_name, 'tutor-pro' ); //phpcs:ignore
-										}
-										?>
-									</span>
-								</div>
-							</td>
-							<?php endif; ?>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
-		</div>
-
+	<!-- Table -->
+	<?php if ( count( $statements['statements'] ?? array() ) ) : ?>
 		<?php
-		if ( $statements['total_statements'] > $per_page ) {
-			$pagination_data = array(
-				'total_items' => $statements['total_statements'],
-				'per_page'    => $per_page,
-				'paged'       => $paged,
-			);
-			tutor_load_template_from_custom_path(
-				tutor()->path . 'templates/dashboard/elements/pagination.php',
-				$pagination_data
+		$headings = array_map(
+			fn( $content ) => array(
+				'content' => $content,
+			),
+			array(
+				esc_html__( 'Transaction Details', 'tutor-pro' ),
+				esc_html__( 'Price Breakdown', 'tutor-pro' ),
+				esc_html__( 'Net Earnings', 'tutor-pro' ),
+				esc_html__( 'Admin Share', 'tutor-pro' ),
+			)
+		);
+
+		$contents                  = array();
+		$breakdown_label           = sprintf(
+			'<span class="tutor-analytics-statements-mobile-label">%s</span>',
+			esc_html__( 'Breakdown', 'tutor-pro' )
+		);
+		$instructor_earnings_label = sprintf(
+			'<span class="tutor-analytics-statements-mobile-label">%s</span>',
+			esc_html__( 'My Earnings', 'tutor-pro' )
+		);
+		$admin_earnings_label      = sprintf(
+			'<span class="tutor-analytics-statements-mobile-label">%s</span>',
+			esc_html__( 'Admin Gets', 'tutor-pro' )
+		);
+
+		foreach ( $statements['statements'] as $statement ) {
+			$wc_order                 = function_exists( 'wc_get_order' ) ? wc_get_order( $statement->order_id ) : false;
+			$customer                 = $wc_order ? $wc_order->get_user() : null;
+			$is_inclusive_tax         = Tax::TYPE_INCLUSIVE === $statement->order_tax_type;
+			$course_price_grand_total = $is_inclusive_tax ? max( $statement->course_price_grand_total - $statement->order_tax_amount, 0 ) : $statement->course_price_grand_total;
+			$instructor_amount        = $is_inclusive_tax ? ( $course_price_grand_total * ( $statement->instructor_rate / 100 ) ) : $statement->instructor_amount;
+			$admin_amount             = $is_inclusive_tax ? ( $course_price_grand_total * ( $statement->admin_rate / 100 ) ) : $statement->admin_amount;
+
+			$statement_table = TUTOR_REPORT()->path . 'templates/elements/statement-table.php';
+			$contents[]      = array(
+				'columns' => array(
+					array(
+						'content' => get_template_buffer(
+							$statement_table,
+							array(
+								'statement' => $statement,
+								'template'  => 'statement_info',
+							),
+							false
+						),
+					),
+					array(
+						'content' => $breakdown_label . get_template_buffer(
+							$statement_table,
+							array(
+								'statement' => $statement,
+								'template'  => 'statement_breakdown',
+							),
+							false
+						),
+					),
+					array(
+						'content' => $instructor_earnings_label . get_template_buffer(
+							$statement_table,
+							array(
+								'statement' => $statement,
+								'template'  => 'instructor_earnings',
+							),
+							false
+						),
+					),
+					array(
+						'content' => $admin_earnings_label . get_template_buffer(
+							$statement_table,
+							array(
+								'statement' => $statement,
+								'template'  => 'admin_earnings',
+							),
+							false
+						),
+					),
+				),
 			);
 		}
 		?>
+		<div class="tutor-table-wrapper">
+			<?php Table::make()->headings( $headings )->contents( $contents )->render(); ?>
+		</div>
+		<!-- Table -->
 	<?php else : ?>
-		<?php tutor_utils()->tutor_empty_state( tutor_utils()->not_found_text() ); ?>
+		<?php
+			EmptyState::make()
+				->title( __( 'No Statements Found!', 'tutor-pro' ) )
+				->render();
+		?>
 	<?php endif; ?>
 </div>
+
+<!-- Pagination -->
+<?php
+Pagination::make()
+	->attr( 'class', 'tutor-mt-7' )
+	->current( $current_page )
+	->total( $statements['total_statements'] ?? 0 )
+	->limit( $pagination_per_page )
+	->render();
+?>

@@ -30,10 +30,26 @@
 						<div class="tutor-accordion-item-body-content">
 							<div class="tutor-fs-7 tutor-color-secondary">
 								<?php
-								$content  = _x( 'To integrate with Google Meet, go to this', 'google meet instruction', 'tutor-pro' );
-								$content .= '<a href="https://console.cloud.google.com/apis/dashboard" target="_blank"> ' . _x( 'link', 'google meet instruction', 'tutor-pro' ) . ' </a>';
-								$content .= _x( 'o create your OAuth Access Credentials. During this process, copy the link from the Set API Tab and paste it as your Redirect URI. For a more detailed guide, please refer to our ', 'google meet instruction', 'tutor-pro' );
-								$content .= '<a href="https://docs.themeum.com/tutor-lms/addons/google-meet-integration/" target="_blank"> ' . _x( 'documentation', 'google meet instruction', 'tutor-pro' ) . ' </a>';
+								$dashboard_url     = 'https://console.cloud.google.com/apis/dashboard';
+								$documentation_url = 'https://tutorlms.com/docs/google-meet-integration-tutor-addon/';
+								$content           = sprintf(
+								/* translators: 1: Google Cloud Console link, 2: Documentation link */
+									_x(
+										'To integrate Google Meet, you must generate %1$s via the Google Developer Console. During this setup, copy the URL from the \'Set API\' tab and paste it into Google as your Authorized Redirect URI. For %2$s, please refer to our official documentation.',
+										'google meet instruction',
+										'tutor-pro'
+									),
+									sprintf(
+										'<a class="tutor-text-brand" href="%1$s" target="_blank">%2$s</a>',
+										esc_url( $dashboard_url ),
+										esc_html_x( 'OAuth Access Credentials', 'google meet instruction', 'tutor-pro' )
+									),
+									sprintf(
+										'<a class="tutor-text-brand" href="%1$s" target="_blank">%2$s</a>',
+										esc_url( $documentation_url ),
+										esc_html_x( 'step-by-step instructions', 'google meet instruction', 'tutor-pro' )
+									),
+								);
 								echo html_entity_decode( $content );//phpcs:ignore
 								?>
 							</div>
@@ -52,9 +68,7 @@
 						<div class="tutor-accordion-item-body-content">
 							<div class="tutor-fs-7 tutor-color-secondary">
 								<?php
-								$live_lesson_content  = _x( 'You can create a live lesson by going into the course editor for any Tutor LMS course. There, you will see a section for Google Meet where you can schedule a Google Meet meeting. You can also add lesson-specific meetings by navigating into any topic and selecting the ', 'google meet live lesson FAQ', 'tutor-pro' );
-								$live_lesson_content .= '<strong> ' . _x( 'Google Meet Live Lesson', 'google meet live lesson FAQ', 'tutor-pro' ) . ' </strong>';
-								$live_lesson_content .= __( 'option', 'tutor-pro' );
+								$live_lesson_content = _x( 'You can schedule a live lesson directly from the Course Builder. Scroll to the new Google Meet section to create a course-wide meeting, or navigate to a specific topic and select the \'Google Meet Live Lesson\' option to attach a meeting directly to that curriculum item.', 'google meet live lesson FAQ', 'tutor-pro' );
 								echo wp_kses_post( html_entity_decode( $live_lesson_content ) );
 								?>
 							</div>
@@ -91,7 +105,10 @@
 						<div class="tutor-accordion-item-body-content">
 							<div class="tutor-fs-7 tutor-color-secondary">
 								<?php
-								esc_html_e( 'Yes, you would need a Google Account to go through the entire process of setting up Google Meet with Tutor LMS. You will also need a Google account to host meetings with Google Meet.', 'tutor-pro' );
+								esc_html_e(
+									'Yes, an active Google Account is required to configure the API credentials and to act as the primary host for the scheduled live meetings.',
+									'tutor-pro'
+								);
 								?>
 							</div>
 						</div>

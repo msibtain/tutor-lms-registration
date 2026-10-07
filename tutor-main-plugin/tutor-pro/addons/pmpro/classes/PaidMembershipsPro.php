@@ -11,12 +11,13 @@
 
 namespace TUTOR_PMPRO;
 
-use Tutor\Helpers\QueryHelper;
-use TUTOR\Input;
+defined( 'ABSPATH' ) || exit;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+use Tutor\Helpers\QueryHelper;
+use Tutor\Helpers\UrlHelper;
+use TUTOR\Input;
+use Tutor\Models\CourseModel;
+use Tutor\Models\EnrollmentModel;
 
 /**
  * Class PaidMembershipsPro
@@ -34,8 +35,16 @@ class PaidMembershipsPro {
 
 	/**
 	 * Register hooks
+	 *
+	 * @since 1.3.5
+	 *
+	 * @return void
 	 */
 	public function __construct() {
+
+		$pmpro_path = WP_PLUGIN_DIR . '/paid-memberships-pro/paid-memberships-pro.php';
+		register_deactivation_hook( $pmpro_path, array( $this, 'pmpro_deactivation_handler' ) );
+
 		add_action( 'pmpro_membership_level_after_other_settings', array( $this, 'display_courses_categories' ) );
 		add_action( 'pmpro_save_membership_level', array( $this, 'pmpro_settings' ) );
 		add_filter( 'tutor_course/single/add-to-cart', array( $this, 'tutor_course_add_to_cart' ) );
@@ -48,18 +57,36 @@ class PaidMembershipsPro {
 		add_filter( 'tutor/options/attr', array( $this, 'add_options' ) );
 
 		if ( tutor_utils()->has_pmpro( true ) ) {
-			// Remove price column if PM pro used.
-			add_filter( 'manage_' . tutor()->course_post_type . '_posts_columns', array( $this, 'remove_price_column' ), 11, 1 );
+			// Enqueue styles and scripts.
+			add_action( 'wp_enqueue_scripts', array( $this, 'pricing_style' ) );
+			add_action( 'admin_enqueue_scripts', array( $this, 'admin_script' ) );
 
 			// Add categories column to pm pro level table.
 			add_action( 'pmpro_membership_levels_table_extra_cols_header', array( $this, 'level_category_list' ) );
 			add_action( 'pmpro_membership_levels_table_extra_cols_body', array( $this, 'level_category_list_body' ) );
 			add_filter( 'pmpro_membership_levels_table', array( $this, 'outstanding_cat_notice' ) );
-			add_action( 'wp_enqueue_scripts', array( $this, 'pricing_style' ) );
-			add_action( 'admin_enqueue_scripts', array( $this, 'admin_script' ) );
 
 			add_filter( 'tutor_course_expire_validity', array( $this, 'filter_expire_time' ), 99, 2 );
-			add_action( 'pmpro_subscription_expired', array( $this, 'remove_course_access' ) );
+			add_action( 'pmpro_after_change_membership_level', array( $this, 'remove_course_access' ), 10, 3 );
+
+			// @since 4.0.0
+			add_filter( 'tutor_get_orders_by_user_id', array( $this, 'filter_get_orders_by_user_id' ), 10, 3 );
+			add_filter( 'tutor_order_history_status_options', array( $this, 'filter_order_history_status_options' ), 10, 2 );
+			add_filter( 'tutor_order_history_card_template', array( $this, 'pmpro_order_history_card_template' ) );
+			add_action( 'tutor_course/single/entry/after', array( $this, 'membership_expire_info' ), 9 );
+		}
+	}
+
+	/**
+	 * Handle PMPro deactivation.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public function pmpro_deactivation_handler() {
+		if ( 'pmpro' === tutor_utils()->get_option( 'monetize_by' ) ) {
+			tutor_utils()->update_option( 'monetize_by', 'free' );
 		}
 	}
 
@@ -70,14 +97,18 @@ class PaidMembershipsPro {
 	 *
 	 * @since 2.5.0
 	 *
-	 * @param \MemberOrder $old_order old order data.
+	 * @param int $level_id level id.
+	 * @param int $user_id user id.
+	 * @param int $cancel_id cancel id.
 	 *
 	 * @return void
 	 */
-	public function remove_course_access( \MemberOrder $old_order ) {
-		$user_id = $old_order->user_id;
-		$level   = pmpro_getMembershipLevelForUser( $user_id );
-		$model   = get_pmpro_membership_level_meta( $level->id, 'tutor_pmpro_membership_model', true );
+	public function remove_course_access( $level_id, $user_id, $cancel_id ) {
+		if ( ! $cancel_id ) {
+			return;
+		}
+
+		$model = get_pmpro_membership_level_meta( $cancel_id, 'tutor_pmpro_membership_model', true );
 
 		$all_models = array( self::FULL_WEBSITE_MEMBERSHIP, self::CATEGORY_WISE_MEMBERSHIP );
 		if ( ! in_array( $model, $all_models, true ) ) {
@@ -87,14 +118,32 @@ class PaidMembershipsPro {
 		$enrolled_courses = array();
 
 		if ( self::FULL_WEBSITE_MEMBERSHIP === $model ) {
-			$enrolled_courses = tutor_utils()->get_enrolled_courses_by_user( $user_id );
+			$enrolled_courses = CourseModel::get_enrolled_courses_by_user( $user_id );
 		}
 
 		if ( self::CATEGORY_WISE_MEMBERSHIP === $model ) {
 			$lbl_obj    = new \PMPro_Membership_Level();
-			$categories = (array) $lbl_obj->get_membership_level_categories( $level->id );
+			$categories = $lbl_obj->get_membership_level_categories( $cancel_id );
 			if ( count( $categories ) ) {
-				$enrolled_courses = tutor_utils()->get_enrolled_courses_by_user( $user_id, 'publish', 0, -1, array( 'category__in' => $categories ) );
+				$enrolled_courses_ids = array_unique( tutor_utils()->get_enrolled_courses_ids_by_user( $user_id ) );
+				if ( $enrolled_courses_ids ) {
+					$enrolled_courses = new \WP_Query(
+						array(
+							'post_type'      => tutor()->course_post_type,
+							'post_status'    => 'publish',
+							'posts_per_page' => -1,
+							'tax_query'      => array(
+								array(
+									'taxonomy' => 'course-category',
+									'field'    => 'term_id',
+									'terms'    => $categories,
+									'operator' => 'IN',
+								),
+							),
+							'post__in'       => $enrolled_courses_ids,
+						)
+					);
+				}
 			}
 		}
 
@@ -105,22 +154,6 @@ class PaidMembershipsPro {
 			}
 		}
 
-	}
-
-	/**
-	 * Remove price column
-	 *
-	 * @param array $columns columns.
-	 *
-	 * @return array
-	 */
-	public function remove_price_column( $columns = array() ) {
-
-		if ( isset( $columns['price'] ) ) {
-			unset( $columns['price'] );
-		}
-
-		return $columns;
 	}
 
 	/**
@@ -261,7 +294,7 @@ class PaidMembershipsPro {
 						array(
 							'key'     => 'pmpro_no_commitment_message',
 							'type'    => 'text',
-							'label'   => 'No commitment message',
+							'label'   => __( 'No commitment message', 'tutor-pro' ),
 							'default' => '',
 							'desc'    => __( 'Keep empty to hide', 'tutor-pro' ),
 						),
@@ -448,9 +481,9 @@ class PaidMembershipsPro {
 		$content_id = (int) $content_id;
 
 		$require = $this->pmpro_pricing( null, $course_id );
-		// @since v2.0.7 If user has no access to the content then get back to the course.
+		// @since 2.0.7 If user has no access to the content then get back to the course.
 		$has_course_access  = tutor_utils()->has_user_course_content_access();
-		$is_enrolled        = tutor_utils()->is_enrolled( $course_id, get_current_user_id() );
+		$is_enrolled        = EnrollmentModel::is_enrolled( $course_id, get_current_user_id() );
 		$is_preview_enabled = tutor()->lesson_post_type === get_post_type( $content_id ) ? (bool) get_post_meta( $content_id, '_is_preview', true ) : false;
 
 		if ( $has_course_access || $is_enrolled || $is_preview_enabled ) {
@@ -472,14 +505,14 @@ class PaidMembershipsPro {
 	 * @return string  html content to show on the enrollment section
 	 */
 	public function pmpro_pricing( $html, $course_id ) {
-		$is_enrolled       = tutor_utils()->is_enrolled();
+		$is_enrolled       = EnrollmentModel::is_enrolled();
 		$has_course_access = tutor_utils()->has_user_course_content_access();
 
 		/**
 		 * If current user has course access then no need to show price
 		 * plan.
 		 *
-		 * @since v2.0.7
+		 * @since 2.0.7
 		 */
 		if ( $is_enrolled || $has_course_access ) {
 			return $html;
@@ -495,8 +528,15 @@ class PaidMembershipsPro {
 		$level_page_id  = apply_filters( 'tutor_pmpro_level_page_id', pmpro_getOption( 'levels_page_id' ) );
 		$level_page_url = get_the_permalink( $level_page_id );
 
+		/**
+		 * Get PM pro currency.
+		 *
+		 * Contains: $currency_symbol, $currency_position.
+		 */
+		$pmpro_currency = $this->get_pmpro_currency();
+
 		//phpcs:ignore
-		extract( $this->get_pmpro_currency() ); // $currency_symbol, $currency_position.
+		extract( $pmpro_currency );
 
 		ob_start();
 		include dirname( __DIR__ ) . '/views/pmpro-pricing.php';
@@ -570,9 +610,12 @@ class PaidMembershipsPro {
 	/**
 	 * Get PM pro currency
 	 *
-	 * @return mixed
+	 * @return array {
+	 *     @var string $currency_symbol currency symbol.
+	 *     @var string $currency_position currency position.
+	 * }
 	 */
-	private function get_pmpro_currency() {
+	private function get_pmpro_currency(): array {
 
 		global $pmpro_currencies, $pmpro_currency;
 		$current_currency = $pmpro_currency ? $pmpro_currency : '';
@@ -613,8 +656,15 @@ class PaidMembershipsPro {
 
 		ob_start();
 
+		/**
+		 * Get PM pro currency.
+		 *
+		 * Contains: $currency_symbol, $currency_position.
+		 */
+		$pmpro_currency = $this->get_pmpro_currency();
+
 		//phpcs:ignore
-		extract( $this->get_pmpro_currency() ); // $currency_symbol, $currency_position
+		extract( $pmpro_currency );
 		include dirname( __DIR__ ) . '/views/outstanding-catagory-notice.php';
 
 		return $html . ob_get_clean();
@@ -668,7 +718,7 @@ class PaidMembershipsPro {
 		$term_ids        = $this->get_term_ids( $course_id );
 		$required_levels = $this->required_levels( $term_ids );
 		$user_levels     = pmpro_getMembershipLevelsForUser( $user_id );
-		$is_enrolled     = tutor_utils()->is_enrolled( $course_id, $user_id );
+		$is_enrolled     = EnrollmentModel::is_enrolled( $course_id, $user_id );
 
 		if ( false === $is_enrolled ) {
 			// If course has levels.
@@ -740,5 +790,197 @@ class PaidMembershipsPro {
 			( is_array( $terms ) ? $terms : array() )
 		);
 		return $term_ids;
+	}
+
+	/**
+	 * Get PMPro user orders related to tutor membership levels.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int   $user_id user id.
+	 * @param array $args arguments.
+	 *
+	 * @return array|int return orders array or count if return_count is true.
+	 */
+	public function get_user_orders( $user_id, $args = array() ) {
+		$return_count      = isset( $args['return_count'] ) ? (bool) $args['return_count'] : false;
+		$membership_levels = $this->required_levels( array() );
+		$level_ids         = array_column( $membership_levels, 'id' );
+		if ( ! tutor_utils()->count( $level_ids ) ) {
+			return $return_count ? 0 : array();
+		}
+
+		$params = array(
+			'user_id'             => $user_id,
+			'membership_level_id' => $level_ids,
+		);
+
+		if ( $return_count ) {
+			$params['return_count'] = true;
+		}
+
+		if ( ! empty( $args['status'] ) ) {
+			$params['status'] = $args['status'];
+		}
+
+		if ( ! empty( $args['limit'] ) ) {
+			$params['limit'] = $args['limit'];
+		}
+
+		if ( ! empty( $args['offset'] ) ) {
+			$params['offset'] = $args['offset'];
+		}
+
+		if ( ! empty( $args['order'] ) ) {
+			$params['orderby'] = 'o.id ' . QueryHelper::get_valid_sort_order( $args['order'] );
+		}
+
+		if ( ! empty( $start_date ) ) {
+			$args['start_date'] = $start_date . ' 00:00:00';
+		}
+
+		if ( ! empty( $end_date ) ) {
+			$args['end_date'] = $end_date . ' 23:59:59';
+		}
+
+		$result = ( new \MemberOrder() )->get_orders( $params );
+		return $result;
+	}
+
+	/**
+	 * Filter order history data.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param object $data data.
+	 * @param int    $user_id user id.
+	 * @param array  $args arguments.
+	 *
+	 * @return object {results: array, total_count: int}
+	 */
+	public function filter_get_orders_by_user_id( $data, $user_id, $args ) {
+		if ( ! $user_id ) {
+			return $data;
+		}
+
+		$params = array(
+			'start_date' => Input::sanitize( $args['start_date'] ?? '' ),
+			'end_date'   => Input::sanitize( $args['end_date'] ?? '' ),
+			'order'      => QueryHelper::get_valid_sort_order( $args['order'] ?? 'DESC' ),
+			'offset'     => intval( $args['offset'] ?? 0 ),
+			'limit'      => intval( $args['limit'] ?? 0 ),
+		);
+
+		if ( ! empty( $args['status'] ) && 'all' !== $args['status'] ) {
+			$params['status'] = Input::sanitize( $args['status'] );
+		}
+
+		$orders = $this->get_user_orders( $user_id, $params );
+
+		$params['return_count'] = true;
+		$total_orders           = $this->get_user_orders( $user_id, $params );
+
+		$data->results     = $orders;
+		$data->total_count = $total_orders;
+
+		return $data;
+	}
+
+	/**
+	 * Filter order history status options
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array  $options options.
+	 * @param string $selected Selected status.
+	 *
+	 * @return array<array{label: string, value: string, count: int, url: string, active: bool}>
+	 */
+	public function filter_order_history_status_options( $options, $selected ) {
+		$url     = get_pagenum_link();
+		$user_id = get_current_user_id();
+
+		$statuses = array(
+			'all'      => __( 'All', 'tutor-pro' ),
+			'pending'  => __( 'Pending', 'tutor-pro' ),
+			'success'  => __( 'Success', 'tutor-pro' ),
+			'refunded' => __( 'Refunded', 'tutor-pro' ),
+		);
+
+		$options = array();
+
+		foreach ( $statuses as $key => $status ) {
+			$params = array(
+				'return_count' => true,
+				'status'       => $key,
+			);
+
+			if ( 'all' === $key || empty( $key ) ) {
+				unset( $params['status'] );
+			}
+
+			$options[] = array(
+				'label'  => ucfirst( $status ),
+				'value'  => $key,
+				'count'  => $this->get_user_orders( $user_id, $params ),
+				'url'    => UrlHelper::add_query_params( $url, array( 'data' => $key ) ),
+				'active' => $key === $selected || ( empty( $key ) && 'all' === $selected ),
+			);
+		}
+
+		return $options;
+	}
+
+	/**
+	 * PMPro order history card template
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $template template.
+	 *
+	 * @return string
+	 */
+	public function pmpro_order_history_card_template( $template ) {
+		return TUTOR_PMPRO()->path . 'templates/dashboard/account/billing/order-history-card.php';
+	}
+
+	/**
+	 * Show membership expire info for PMPro.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int $course_id course id.
+	 *
+	 * @return void
+	 */
+	public function membership_expire_info( $course_id ) {
+		$user_id    = get_current_user_id();
+		$enrollment = EnrollmentModel::is_enrolled( $course_id, $user_id );
+		if ( ! $enrollment ) {
+			return;
+		}
+
+		$active_membership = pmpro_getMembershipLevelForUser( $user_id );
+		if ( ! $active_membership ) {
+			return;
+		}
+
+		$expire_text = '';
+		if ( function_exists( 'pmpro_get_membership_expiration_text' ) ) {
+			$expire_text = pmpro_get_membership_expiration_text( $active_membership, $user_id );
+		}
+
+		if ( ! empty( $expire_text ) ) {
+			remove_all_filters( 'tutor_course/single/entry/after' );
+			?>
+			<div class="enrolment-expire-info tutor-fs-7 tutor-color-muted tutor-d-flex tutor-align-center tutor-mt-12">
+				<i class="tutor-icon-calender-line tutor-mr-8"></i>
+				<?php
+				// translators: %s: expire date.
+				echo esc_html( sprintf( __( 'Membership validity: %s', 'tutor-pro' ), $expire_text ) );
+				?>
+			</div>
+			<?php
+		}
 	}
 }

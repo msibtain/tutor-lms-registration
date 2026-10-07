@@ -31,7 +31,7 @@
                         <b><?php echo esc_html( '' !== $logged_in_as ?  $logged_in_as->emailAddress : '' ); ?></b>
                     </div>
                     <div class="tutor-col-12 tutor-col-md-6" style="text-align:right">
-                        <?php esc_html_e( 'Classlist Shortcode:', 'tutor-pro' ); ?> <span><b>[tutor_gc_classes]</b> <span class="tutor-iconic-btn tutor-mr-n8 tutor-copy-text" data-text="[tutor_gc_classes]" role="button"><span class="tutor-icon-copy" area-hidden="true"></span></span></span>
+                        <?php esc_html_e( 'Classlist Shortcode:', 'tutor-pro' ); ?> <span><b>[tutor_gc_classes]</b> <span class="tutor-iconic-btn tutor-mr-n8 tutor-copy-text" data-text="[tutor_gc_classes]" role="button"><span class="tutor-icon-copy" aria-hidden="true"></span></span></span>
                     </div>
                 </div>
             </div>

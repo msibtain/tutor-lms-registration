@@ -44,7 +44,7 @@ $add_course_url = esc_url( admin_url( 'admin.php?page=create-course' ) );
 
 	<div class="tutor-col-md-auto">
 		<div class="tutor-form-wrap">
-			<span class="tutor-form-icon"><span class="tutor-icon-search" area-hidden="true"></span></span>
+			<span class="tutor-form-icon"><span class="tutor-icon-search" aria-hidden="true"></span></span>
 			<input type="text" id="tutor-gc-search-class" class="tutor-form-control" placeholder="<?php esc_html_e( 'Search', 'tutor-pro' ); ?>" />
 		</div>
 	</div>
@@ -136,11 +136,11 @@ $add_course_url = esc_url( admin_url( 'admin.php?page=create-course' ) );
 							<button class="tutor-btn tutor-btn-primary tutor-btn-md" data-action="restore" data-class_post_id="<?php echo esc_attr( $post_id ); ?>"><?php esc_html_e( 'Restore', 'tutor-pro' ); ?></button>
 
 							<button class="tutor-iconic-btn" data-action="trash" data-class_post_id="<?php echo esc_attr( $post_id ); ?>">
-								<span class="tutor-icon-trash-can" area-hidden="true"></span>
+								<span class="tutor-icon-trash-can" aria-hidden="true"></span>
 							</button>
 
 							<button class="tutor-iconic-btn" data-action="delete" data-prompt="Sure to delete permanently?" data-class_post_id="<?php echo esc_attr( $post_id ); ?>">
-								<span class="tutor-icon-trash-can" area-hidden="true"></span>
+								<span class="tutor-icon-trash-can" aria-hidden="true"></span>
 							</button>
 						</td>
 					</tr>

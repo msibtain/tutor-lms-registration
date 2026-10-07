@@ -11,6 +11,7 @@
 
 namespace TUTOR_NOTIFICATIONS;
 
+use Tutor\Helpers\UrlHelper;
 use TUTOR\Input;
 
 defined( 'ABSPATH' ) || exit;
@@ -21,36 +22,16 @@ defined( 'ABSPATH' ) || exit;
 class Notifications {
 
 	/**
-	 * Register hooks
-	 *
-	 * @return void
-	 */
-	public function __construct() {
-		add_action( 'tutor_after_approved_instructor', array( $this, 'instructor_approval' ) );
-		add_action( 'tutor_after_rejected_instructor', array( $this, 'instructor_rejected' ) );
-
-		add_action( 'tutor_new_instructor_after', array( $this, 'new_instructor_application' ) );
-
-		add_action( 'tutor_assignment/evaluate/after', array( $this, 'tutor_after_assignment_evaluated' ), 10, 3 );
-		add_action( 'tutor_announcements/after/save', array( $this, 'tutor_announcements_notify_students' ), 10, 3 );
-		add_action( 'tutor_after_answer_to_question', array( $this, 'tutor_after_answer_to_question' ) );
-		add_action( 'tutor_quiz/attempt/submitted/feedback', array( $this, 'feedback_submitted_for_quiz_attempt' ) );
-
-		add_action( 'tutor_after_enrolled', array( $this, 'tutor_student_course_enrolled' ), 10, 3 );
-		add_action( 'tutor_enrollment/after/cancel', array( $this, 'tutor_student_remove_from_course' ), 10, 1 );
-	}
-
-	/**
 	 * Instructor Approval
 	 *
 	 * @param int $instructor_id instructor id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function instructor_approval( $instructor_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_instructors.instructor_application_accepted' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$user_data    = get_userdata( $instructor_id );
@@ -63,9 +44,9 @@ class Notifications {
 		$translated_string1 = _x( 'Congratulations', 'instructorship-approved-text', 'tutor-pro' );
 		$translated_string2 = _x( 'your application to be an instructor has been approved.', 'instructorship-approved-text', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . ucfirst( $display_name ) . ', <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . ucfirst( $display_name ) . ', <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
 		$message_content .= '</span>';
 
@@ -79,7 +60,9 @@ class Notifications {
 			'topic_url'   => null,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $instructor_id => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -87,12 +70,12 @@ class Notifications {
 	 *
 	 * @param int $instructor_id instructor id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function instructor_rejected( $instructor_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_instructors.instructor_application_rejected' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$user_data    = get_userdata( $instructor_id );
@@ -104,7 +87,7 @@ class Notifications {
 
 		$translated_string = _x( 'your instructorship application has been declined.', 'instructorship-rejected-text', 'tutor-pro' );
 
-		$message_content  = ucfirst( $display_name ) . ', <span class="tutor-color-secondary">';
+		$message_content  = ucfirst( $display_name ) . ', <span class="tutor-text-secondary">';
 		$message_content .= $translated_string;
 		$message_content .= '</span>';
 
@@ -118,7 +101,9 @@ class Notifications {
 			'topic_url'   => null,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $instructor_id => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -126,12 +111,12 @@ class Notifications {
 	 *
 	 * @param int $instructor_id instructor id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function new_instructor_application( $instructor_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_admin.instructor_application_received' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$admin_users  = get_users( array( 'role__in' => array( 'administrator' ) ) );
@@ -156,9 +141,9 @@ class Notifications {
 			$translated_string1 = _x( 'you have received a new application from', 'instructor-application-received', 'tutor-pro' );
 			$translated_string2 = _x( 'for Instructorship.', 'instructor-application-received', 'tutor-pro' );
 
-			$message_content  = ucfirst( $admin->display_name ) . ', <span class="tutor-color-secondary">';
+			$message_content  = ucfirst( $admin->display_name ) . ', <span class="tutor-text-secondary">';
 			$message_content .= $translated_string1;
-			$message_content .= '</span> ' . ucfirst( $display_name ) . ' <span class="tutor-color-secondary">';
+			$message_content .= '</span> ' . ucfirst( $display_name ) . ' <span class="tutor-text-secondary">';
 			$message_content .= $translated_string2;
 			$message_content .= '</span>';
 
@@ -167,9 +152,13 @@ class Notifications {
 			array_push( $admin_records, $data );
 		}
 
+		$notification_ids = array();
 		foreach ( $admin_records as $admin_record ) {
-			Utils::save_notification_data( $admin_record );
+			$receiver_id                        = (int) $admin_record['receiver_id'];
+			$notification_ids[ $receiver_id ] = Utils::save_notification_data( $admin_record );
 		}
+
+		return $notification_ids;
 	}
 
 	/**
@@ -177,12 +166,12 @@ class Notifications {
 	 *
 	 * @param int $assignment_submission_id assignment submission id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function tutor_after_assignment_evaluated( $assignment_submission_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.assignment_graded' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$submitted_assignment = tutor_utils()->get_assignment_submit_info( $assignment_submission_id );
@@ -201,11 +190,11 @@ class Notifications {
 		$translated_string2 = _x( 'your', 'grades-submitted-text', 'tutor-pro' );
 		$translated_string3 = _x( 'has been graded. Check it out.', 'grades-submitted-text', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . ucfirst( $display_name ) . ', <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . ucfirst( $display_name ) . ', <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
-		$message_content .= '</span> ' . $assignment_name . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . $assignment_name . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string3;
 		$message_content .= '</span>';
 
@@ -219,7 +208,9 @@ class Notifications {
 			'topic_url'   => $assignment_url,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $submitted_assignment->user_id => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -229,13 +220,13 @@ class Notifications {
 	 * @param object $announcement announcement.
 	 * @param string $action_type type.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function tutor_announcements_notify_students( $announcement_id, $announcement, $action_type ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.new_announcement_posted' );
 
 		if ( ! $notification_enabled || 'on' !== Input::post( 'tutor_notify_all_students' ) ) {
-			return;
+			return array();
 		}
 
 		$student_ids = tutor_utils()->get_students_data_by_course_id( $announcement->post_parent, 'ID' );
@@ -250,13 +241,16 @@ class Notifications {
 		$translated_string1 = 'create' === $action_type ? _x( 'A new announcement has been posted by', 'announcement-text', 'tutor-pro' ) : _x( 'An announcement has been updated by', 'announcement-text', 'tutor-pro' );
 		$translated_string2 = _x( 'of', 'announcement-text', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . ucfirst( $author_name ) . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . ucfirst( $author_name ) . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
 		$message_content .= '</span> ' . $course_name;
 
-		$announcement_url = get_permalink( $announcement->post_parent );
+		$announcement_url = UrlHelper::add_query_params(
+			get_permalink( $announcement->post_parent ),
+			array( 'subpage' => 'announcements' )
+		);
 
 		$announcement_records = array();
 
@@ -273,9 +267,13 @@ class Notifications {
 			);
 		}
 
+		$notification_ids = array();
 		foreach ( $announcement_records as $announcement ) {
-			Utils::save_notification_data( $announcement );
+			$receiver_id                        = (int) $announcement['receiver_id'];
+			$notification_ids[ $receiver_id ] = Utils::save_notification_data( $announcement );
 		}
+
+		return $notification_ids;
 	}
 
 	/**
@@ -283,18 +281,18 @@ class Notifications {
 	 *
 	 * @param int $answer_id answer id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function tutor_after_answer_to_question( $answer_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.after_question_answered' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$answer = tutor_utils()->get_qa_answer_by_answer_id( $answer_id );
 
 		if ( ! $answer ) {
-			return;
+			return array();
 		}
 
 		$course_name     = get_the_title( $answer->comment_post_ID );
@@ -309,14 +307,20 @@ class Notifications {
 		$translated_string2 = _x( 'in', 'qa-answer-posted', 'tutor-pro' );
 		$translated_string3 = _x( '\'s Q&A.', 'qa-answer-posted', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . ucfirst( $comment_author ) . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . ucfirst( $comment_author ) . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
 		$message_content .= '</span> ' . $course_name;
 		$message_content .= $translated_string3;
 
-		$qa_url = tutor_utils()->tutor_dashboard_url( 'question-answer?question_id=' . $answer->question_id );
+		$qa_url = UrlHelper::add_query_params(
+			tutor_utils()->get_tutor_dashboard_page_permalink( 'discussions' ),
+			array(
+				'tab' => 'qna',
+				'id'  => $answer->question_id,
+			)
+		);
 
 		$data = array(
 			'type'        => $message_type,
@@ -328,7 +332,9 @@ class Notifications {
 			'topic_url'   => $qa_url,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $question_author => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -336,38 +342,44 @@ class Notifications {
 	 *
 	 * @param int $attempt_id attempt id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function feedback_submitted_for_quiz_attempt( $attempt_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.feedback_submitted_for_quiz' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$attempt    = tutor_utils()->get_attempt( $attempt_id );
 		$quiz_title = get_post_field( 'post_title', $attempt->quiz_id );
 		$course     = get_post( $attempt->course_id );
-		$feedback   = get_post_meta( $attempt_id, 'instructor_feedback', true );
 
-		$message_type   = 'Quiz';
-		$message_status = 'UNREAD';
-		$message_title  = __( 'Quiz', 'tutor-pro' );
-		//phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment
-		$message_content = sprintf( _x( '<span class="tutor-color-secondary">Your quiz result for</span> %1$s <span class="tutor-color-secondary">of</span> %2$s <span class="tutor-color-secondary">has been published.</span>', 'quiz-attempt-text', 'tutor-pro' ), $quiz_title, $course->post_title );
+		$message_type    = 'Quiz';
+		$message_status  = 'UNREAD';
+		$message_title   = __( 'Quiz', 'tutor-pro' );
+		$message_content = sprintf(
+			// translators: %1$s: Quiz title, %2$s: Course title.
+			_x( '<span class="tutor-text-secondary">Your quiz result for</span> %1$s <span class="tutor-text-secondary">of</span> %2$s <span class="tutor-text-secondary">has been published.</span>', 'quiz-attempt-text', 'tutor-pro' ),
+			$quiz_title,
+			$course->post_title
+		);
 
 		$translated_string1 = _x( 'Your quiz result for', 'quiz-attempt-text', 'tutor-pro' );
 		$translated_string2 = _x( 'of', 'quiz-attempt-text', 'tutor-pro' );
 		$translated_string3 = _x( 'has been published.', 'quiz-attempt-text', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . $quiz_title . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . $quiz_title . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
-		$message_content .= '</span> ' . $course->post_title . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . $course->post_title . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string3;
 		$message_content .= '</span>';
 
-		$quiz_url = tutor_utils()->get_tutor_dashboard_page_permalink( 'my-quiz-attempts' );
+		$quiz_url = UrlHelper::add_query_params(
+			tutor_utils()->get_tutor_dashboard_page_permalink( 'courses/my-quiz-attempts' ),
+			array( 'attempt_id' => $attempt_id )
+		);
 
 		$data = array(
 			'type'        => $message_type,
@@ -379,7 +391,9 @@ class Notifications {
 			'topic_url'   => $quiz_url,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $attempt->user_id => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -389,12 +403,12 @@ class Notifications {
 	 * @param int $user_id user id.
 	 * @param int $enrollment_id enrollment id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function tutor_student_course_enrolled( $course_id, $user_id, $enrollment_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.course_enrolled' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$user_data    = get_userdata( $user_id );
@@ -409,7 +423,7 @@ class Notifications {
 
 		$translated_string = _x( 'Congratulations, you have been successfully enrolled in', 'got-enrolled-text', 'tutor-pro' );
 
-		$message_content  = '<span class="tutor-color-secondary">';
+		$message_content  = '<span class="tutor-text-secondary">';
 		$message_content .= $translated_string;
 		$message_content .= '</span> ' . $course_title;
 
@@ -423,7 +437,9 @@ class Notifications {
 			'topic_url'   => $course_url,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $user_id => Utils::save_notification_data( $data ),
+		);
 	}
 
 	/**
@@ -431,18 +447,18 @@ class Notifications {
 	 *
 	 * @param int $enrollment_id  enrollement id.
 	 *
-	 * @return void
+	 * @return array
 	 */
 	public function tutor_student_remove_from_course( $enrollment_id ) {
 		$notification_enabled = tutor_utils()->get_option( 'tutor_notifications_to_students.remove_from_course' );
 		if ( ! $notification_enabled ) {
-			return;
+			return array();
 		}
 
 		$course = tutor_utils()->get_enrolment_by_enrol_id( $enrollment_id );
 
 		if ( ! $course ) {
-			return;
+			return array();
 		}
 
 		$display_name = $course->display_name;
@@ -453,15 +469,19 @@ class Notifications {
 		$message_status = 'UNREAD';
 		$message_title  = __( 'Enrollment', 'tutor-pro' );
 
-		//phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment
-		$message_content = sprintf( _x( '%1$s, <span class="tutor-color-secondary">your enrollment request for</span> %2$s <span class="tutor-color-secondary">has been declined.</span>', 'enrollment-cancelled-text', 'tutor-pro' ), ucfirst( $display_name ), $course_title );
+		$message_content = sprintf(
+			// translators: %1$s: user name, %2$s: course title.
+			_x( '%1$s, <span class="tutor-text-secondary">your enrollment request for</span> %2$s <span class="tutor-text-secondary">has been declined.</span>', 'enrollment-cancelled-text', 'tutor-pro' ),
+			ucfirst( $display_name ),
+			$course_title
+		);
 
 		$translated_string1 = _x( 'your enrollment request for', 'enrollment-cancelled-text', 'tutor-pro' );
 		$translated_string2 = _x( 'has been declined.', 'enrollment-cancelled-text', 'tutor-pro' );
 
-		$message_content  = ucfirst( $display_name ) . ', <span class="tutor-color-secondary">';
+		$message_content  = ucfirst( $display_name ) . ', <span class="tutor-text-secondary">';
 		$message_content .= $translated_string1;
-		$message_content .= '</span> ' . $course_title . ' <span class="tutor-color-secondary">';
+		$message_content .= '</span> ' . $course_title . ' <span class="tutor-text-secondary">';
 		$message_content .= $translated_string2;
 		$message_content .= '</span>';
 
@@ -475,6 +495,8 @@ class Notifications {
 			'topic_url'   => $course_url,
 		);
 
-		Utils::save_notification_data( $data );
+		return array(
+			(int) $course->ID => Utils::save_notification_data( $data ),
+		);
 	}
 }

@@ -27,7 +27,7 @@ $assignment_id       = $submitted_assignment->comment_post_ID;
 <div class="tutor-admin-wrap">
 	<div class="tutor-wp-dashboard-header tutor-px-24 tutor-pt-32 tutor-pb-20">
 		<div class="tutor-mb-8">
-			<a class="tutor-btn tutor-btn-ghost" href="<?php echo esc_url( $assignment_page_url ); ?>"><i class="tutor-icon-previous tutor-mr-8" area-hidden="true"></i> <?php esc_html_e( 'Back', 'tutor-pro' ); ?></a>
+			<a class="tutor-btn tutor-btn-ghost" href="<?php echo esc_url( $assignment_page_url ); ?>"><i class="tutor-icon-previous tutor-mr-8" aria-hidden="true"></i> <?php esc_html_e( 'Back', 'tutor-pro' ); ?></a>
 		</div>
 
 		<div class="tutor-fs-3 tutor-color-black tutor-fw-medium">
@@ -44,7 +44,7 @@ $assignment_id       = $submitted_assignment->comment_post_ID;
 			</div>
 
 			<div class="tutor-col-auto tutor-my-12">
-				<span class="tutor-color-black tutor-fw-medium"><?php esc_html_e( 'Submitted Date', 'tutor-pro' ); ?>:</span> <span class="tutor-color-secondary"><?php esc_html_e( tutor_utils()->convert_date_into_wp_timezone( $submitted_assignment->comment_date_gmt ) ); ?></span>
+				<span class="tutor-color-black tutor-fw-medium"><?php esc_html_e( 'Submitted Date', 'tutor-pro' ); ?>:</span> <span class="tutor-color-secondary"><?php echo esc_html( tutor_utils()->convert_date_into_wp_timezone( $submitted_assignment->comment_date_gmt ) ); ?></span>
 			</div>
 		</div>
 	</div>
@@ -81,7 +81,7 @@ $assignment_id       = $submitted_assignment->comment_post_ID;
 							foreach ( $attached_files as $attached_file ) {
 								?>
 									<div class="uploaded-files">
-										<a href="<?php echo esc_url( $upload_baseurl . tutor_utils()->array_get( 'uploaded_path', $attached_file ) ); ?>" target="_blank"><?php esc_html_e( tutor_utils()->array_get( 'name', $attached_file ) ); ?> <i class="tutor-icon-download"></i></a>
+										<a href="<?php echo esc_url( $upload_baseurl . tutor_utils()->array_get( 'uploaded_path', $attached_file ) ); ?>" target="_blank"><?php echo esc_html( tutor_utils()->array_get( 'name', $attached_file ) ); ?> <i class="tutor-icon-download"></i></a>
 									</div>
 									<?php
 							}
@@ -93,7 +93,7 @@ $assignment_id       = $submitted_assignment->comment_post_ID;
 				}
 				?>
 			</div>
-			
+
 			<div class="tutor-assignment-evaluation">
 				<div class="tutor-fs-6 tutor-fw-medium tutor-color-black tutor-mb-24">
 					<?php esc_html_e( 'Evaluation', 'tutor-pro' ); ?>
@@ -105,17 +105,20 @@ $assignment_id       = $submitted_assignment->comment_post_ID;
 					<?php
 						$assignment_post_id = Input::get( 'post-id', 0, Input::TYPE_INT );
 					?>
-					
+
 					<input type="hidden" name="assignment_post_id" value="<?php echo esc_attr( $assignment_post_id ); ?>">
-					
+
 					<div class="tutor-mb-32">
-						<label for="evaluate_assignment_mark" class="tutor-form-label"><?php esc_html_e( 'Your Points', 'tutor-pro' ); ?></label>
+						<label for="evaluate_assignment_mark" class="tutor-form-label"><?php esc_html_e( 'Obtained Marks', 'tutor-pro' ); ?></label>
 						<div class="tutor-row tutor-align-center">
 							<div class="tutor-col-auto">
-								<input type="number" class="tutor-form-control" id="evaluate_assignment_mark" name="evaluate_assignment[assignment_mark]" value="<?php echo $given_mark ? esc_attr( $given_mark ) : 0; ?>" min="0" max="<?php echo esc_attr( $max_mark ); ?>" title="<?php esc_attr_e( 'Only number is allowed', 'tutor-pro' ); ?>" required>
+								<input type="number" class="tutor-form-control" id="evaluate_assignment_mark" name="evaluate_assignment[assignment_mark]" value="<?php echo $given_mark ? esc_attr( $given_mark ) : 0; ?>" step="0.01" min="0" max="<?php echo esc_attr( $max_mark ); ?>" title="<?php esc_attr_e( 'Only number is allowed', 'tutor-pro' ); ?>" required>
 							</div>
 							<div class="tutor-col-auto tutor-fs-7 tutor-color-muted">
-								<?php echo esc_html( sprintf( __( 'Evaluate this assignment out of %s', 'tutor-pro' ), $max_mark ) ); ?>
+								<?php
+								// translators: %s: Maximum mark.
+								echo esc_html( sprintf( __( 'Evaluate this assignment out of %s', 'tutor-pro' ), $max_mark ) );
+								?>
 							</div>
 						</div>
 					</div>

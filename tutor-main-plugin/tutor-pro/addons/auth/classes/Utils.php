@@ -64,9 +64,11 @@ class Utils {
 	 */
 	public static function sent_login_otp( $email, $otp ) {
 		$email_tpl = tutor_auth()->templates . 'email/login-otp.php';
-		$subject   = __( 'Tutor - login OTP', 'tutor-pro' );
+		// translators: %s is the site name.
+		$subject = sprintf( __( '%s - Login OTP', 'tutor-pro' ), get_bloginfo( 'name' ) );
 
 		$data = array(
+			'{site_url}'             => get_bloginfo( 'url' ),
 			'{login_otp}'            => $otp,
 			'{testing_email_notice}' => '',
 			'{footer_text}'          => tutor_pro_email_global_footer(),

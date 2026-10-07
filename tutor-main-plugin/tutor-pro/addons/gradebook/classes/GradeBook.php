@@ -12,7 +12,10 @@
 namespace TUTOR_GB;
 
 use TUTOR\Backend_Page_Trait;
+use Tutor\Helpers\UrlHelper;
+use TUTOR\Icon;
 use TUTOR\Input;
+use Tutor\Models\QuizModel;
 use TUTOR\User;
 
 /**
@@ -27,12 +30,6 @@ class GradeBook {
 	 */
 
 	use Backend_Page_Trait;
-	/**
-	 * Page Title
-	 *
-	 * @var $page_title
-	 */
-	public $page_title;
 
 	/**
 	 * Bulk Action
@@ -45,8 +42,9 @@ class GradeBook {
 	 * Register hooks
 	 */
 	public function __construct() {
-		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
-		add_action( 'tutor_admin_register', array( $this, 'register_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'gradebook_admin_scripts' ) );
+		add_action( 'wp_enqueue_scripts', array( $this, 'gradebook_front_scripts' ) );
+		add_filter( 'tutor_admin_menu', array( $this, 'register_menu' ) );
 
 		add_action( 'wp_ajax_add_new_gradebook', array( $this, 'add_new_gradebook' ) );
 		add_action( 'wp_ajax_update_gradebook', array( $this, 'update_gradebook' ) );
@@ -58,6 +56,8 @@ class GradeBook {
 
 		add_action( 'tutor_action_gradebook_result_list_bulk_actions', array( $this, 'gradebook_result_list_bulk_actions' ), 10, 0 );
 		add_action( 'delete_tutor_course_progress', array( $this, 'delete_gradebook_on_retake' ), 11, 2 );
+
+		add_filter( 'tutor_learning_area_sub_page_nav_item', array( $this, 'add_subpage_nav_item' ), 10, 2 );
 
 		// Install Sample Grade Data.
 		add_action( 'wp_ajax_import_gradebook_sample_data', array( $this, 'import_gradebook_sample_data' ) );
@@ -72,14 +72,30 @@ class GradeBook {
 		add_action( 'tutor_quiz/answer/review/after', array( $this, 'gradebook_generator_wrapper' ), 10, 3 );
 		add_action( 'delete_tutor_course_progress', array( $this, 'gradebook_generate' ), 10, 2 );
 
-		$this->page_title = __( 'Gradebook', 'tutor' );
-
 		/**
 		 * Handle bulk action
 		 *
 		 * @since v2.0.0
 		 */
 		add_action( 'wp_ajax_tutor_gradebook_bulk_action', array( $this, 'gradebook_bulk_action' ) );
+
+		add_action( 'tutor_pro/learning_area/course_info/before_view_certifiacte', array( $this, 'add_grade_info_to_certificate_preview' ) );
+		add_action( 'tutor_pro/certificate_info/after_course_name', array( $this, 'add_grade_info_to_certificate_info' ) );
+	}
+
+	/**
+	 * Page title fallback
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param string $name Property name.
+	 *
+	 * @return string
+	 */
+	public function __get( $name ) {
+		if ( 'page_title' === $name ) {
+			return esc_html__( 'Gradebook', 'tutor-pro' );
+		}
 	}
 
 	/**
@@ -98,6 +114,28 @@ class GradeBook {
 	}
 
 	/**
+	 * Add Nav Item to tutor subpage.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array  $nav_items the array of nav items.
+	 * @param string $base_url the base url.
+	 *
+	 * @return array
+	 */
+	public function add_subpage_nav_item( $nav_items, $base_url ): array {
+
+		$nav_items['gradebook'] = array(
+			'title'    => __( 'Gradebook', 'tutor-pro' ),
+			'icon'     => Icon::GRADEBOOK,
+			'url'      => UrlHelper::add_query_params( $base_url, array( 'subpage' => 'gradebook' ) ),
+			'template' => TUTOR_GB()->path . 'views/pages/learning-area-gradebook.php',
+		);
+
+		return $nav_items;
+	}
+
+	/**
 	 * Load Tab
 	 *
 	 * @since v2.0.0
@@ -107,7 +145,7 @@ class GradeBook {
 	 * @return array
 	 */
 	public function tabs_key_value( $course_id = '' ): array {
-		$gradebooks = get_generated_gradebooks(
+		$gradebooks = tutor_get_generated_gradebooks(
 			array(
 				'course_id' => $course_id,
 			)
@@ -152,29 +190,55 @@ class GradeBook {
 	 * @return mixed
 	 */
 	public function final_gradebook( $response, $course_id ) {
-		$grade = get_generated_gradebook( 'final', $course_id );
+		$grade = tutor_get_generated_gradebook( 'final', $course_id );
 		return tutor_gradebook_get_stats( $grade );
 	}
 
 	/**
-	 * Admin script
+	 * Gradebook Front scripts
 	 *
 	 * @param string $page page name.
 	 * @return void
 	 */
-	public function admin_scripts( $page ) {
+	public function gradebook_front_scripts( $page ) {
+		$sub_page = Input::get( 'subpage', '' );
+		if ( 'gradebook' === $sub_page && tutor_utils()->is_learning_area() && ! tutor_utils()->is_legacy_learning_mode() ) {
+			wp_enqueue_style( 'tutor-gradebook', TUTOR_GB()->url . 'assets/css/gradebook.css', array(), TUTOR_PRO_VERSION );
+		}
+	}
+
+	/**
+	 * Gradebook Admin script
+	 *
+	 * @param string $page page name.
+	 * @return void
+	 */
+	public function gradebook_admin_scripts( $page ) {
 		if ( 'tutor-lms-pro_page_tutor_gradebook' === $page ) {
 			wp_enqueue_script( 'tutor-gradebook', TUTOR_GB()->url . 'assets/js/gradebook.js', array(), TUTOR_GB()->version, true );
 		}
 	}
 
 	/**
-	 * Register menu.
+	 * Add sub-menu.
 	 *
-	 * @return void
+	 * @since 3.8.0
+	 *
+	 * @param array $menu menu.
+	 *
+	 * @return array
 	 */
-	public function register_menu() {
-		add_submenu_page( 'tutor', __( 'Gradebook', 'tutor-pro' ), __( 'Gradebook', 'tutor-pro' ), 'manage_tutor', 'tutor_gradebook', array( $this, 'tutor_gradebook' ) );
+	public function register_menu( $menu ) {
+		$menu['group_two']['gradebook'] = array(
+			'parent_slug' => 'tutor',
+			'page_title'  => __( 'Gradebook', 'tutor-pro' ),
+			'menu_title'  => __( 'Gradebook', 'tutor-pro' ),
+			'capability'  => 'manage_tutor',
+			'menu_slug'   => 'tutor_gradebook',
+			'callback'    => array( $this, 'tutor_gradebook' ),
+		);
+
+		return $menu;
 	}
 
 	/**
@@ -350,7 +414,7 @@ class GradeBook {
 		global $wpdb;
 
 		$attempt           = tutor_utils()->get_attempt( $attempt_id );
-		$earned_percentage = $attempt->earned_marks > 0 ? ( number_format( ( $attempt->earned_marks * 100 ) / $attempt->total_marks ) ) : 0;
+		$earned_percentage = QuizModel::calculate_attempt_earned_percentage( $attempt );
 		//phpcs:disable
 		$gradebook = $wpdb->get_row(
 			"SELECT * FROM {$wpdb->tutor_gradebooks} 
@@ -490,13 +554,19 @@ class GradeBook {
 		$max_mark   = tutor_utils()->get_assignment_option( $assignment_id, 'total_mark' );
 		$pass_mark  = tutor_utils()->get_assignment_option( $assignment_id, 'pass_mark' );
 		$given_mark = get_comment_meta( $submit_id, 'assignment_mark', true );
-		$grade      = get_generated_gradebook( 'assignment', $assignment_id );
+		$grade      = tutor_get_generated_gradebook( 'assignment', $assignment_id );
 
 		ob_start();
 		?>
 
 		<div class="assignment-result-wrap">
-			<h4><?php echo sprintf( __( 'You received %1$s points out of %2$s', 'tutor-pro' ), "<span class='received-marks'>{$given_mark}</span>", "<span class='out-of-marks'>{$max_mark}</span>" );//phpcs:ignore ?></h4>
+			<h4>
+				<?php
+				printf(
+					// translators: %1$s: Received marks, %2$s: Total marks.
+					__( 'You received %1$s points out of %2$s', 'tutor-pro' ), "<span class='received-marks'>{$given_mark}</span>", "<span class='out-of-marks'>{$max_mark}</span>" );//phpcs:ignore 
+				?>
+			</h4>
 			<h4 class="submitted-assignment-grade">
 				<?php
 				esc_html_e( 'Your grade is ', 'tutor-pro' );
@@ -523,15 +593,15 @@ class GradeBook {
 		global $wpdb;
 
 		$course_contents   = tutor_utils()->get_course_contents_by_id( $course_id );
-		$previous_gen_item = get_generated_gradebook( 'all', $course_id );
+		$previous_gen_item = tutor_get_generated_gradebook( 'all', $course_id );
 
-		$require_gradding = array();
+		$require_grading = array();
 
 		// Prepare the posts that requires grading.
 		if ( tutor_utils()->count( $course_contents ) ) {
 			foreach ( $course_contents as $content ) {
 				if ( 'tutor_quiz' === $content->post_type || 'tutor_assignments' === $content->post_type ) {
-					$require_gradding[] = $content;
+					$require_grading[] = $content;
 				}
 			}
 		}
@@ -540,7 +610,7 @@ class GradeBook {
 		 * Delete if not exists
 		 */
 		if ( tutor_utils()->count( $previous_gen_item ) ) {
-			$quiz_assignment_ids = wp_list_pluck( $require_gradding, 'ID' );
+			$quiz_assignment_ids = wp_list_pluck( $require_grading, 'ID' );
 
 			if ( tutor_utils()->count( $quiz_assignment_ids ) ) {
 
@@ -558,37 +628,39 @@ class GradeBook {
 		}
 
 		// Check if there is anything to generate grade for.
-		if ( ! tutor_utils()->count( $require_gradding ) ) {
+		if ( ! tutor_utils()->count( $require_grading ) ) {
 			return;
 		}
 
 		// Regenerate grading.
-		if ( tutor_utils()->count( $require_gradding ) ) {
+		if ( tutor_utils()->count( $require_grading ) ) {
 
 			// Strip array indexes.
-			$require_graddings = array_values( $require_gradding );
+			$require_gradings = array_values( $require_grading );
 
 			// Loop through posts that needs grading.
-			foreach ( $require_graddings as $course_item ) {
+			foreach ( $require_gradings as $course_item ) {
 				$earned_percentage = 'pending';
 
 				if ( 'tutor_quiz' === $course_item->post_type ) {
 					// Grading for quiz.
 					// Get Attempt by grading method.
 					$attempt = tutor_utils()->get_quiz_attempt( $course_item->ID, $user_id );
-					if ( $attempt ) {
-						$earned_percentage = $attempt->earned_marks > 0 ? ( number_format( ( $attempt->earned_marks * 100 ) / $attempt->total_marks ) ) : 0;
+					if ( ! $attempt ) {
+						continue;
 					}
+					$earned_percentage = QuizModel::calculate_attempt_earned_percentage( $attempt );
+
 				} elseif ( 'tutor_assignments' === $course_item->post_type ) {
 					// Grading for assignment.
 					$submitted_info = tutor_utils()->is_assignment_submitted( $course_item->ID, $user_id );
-					if ( ! $submitted_info || ! get_post_meta( $submitted_info->comment_ID, 'evaluate_time', true ) ) {
+					if ( ! tutor_utils()->count( $submitted_info ) || ! get_post_meta( $submitted_info[0]->comment_ID, 'evaluate_time', true ) ) {
 						// Skip if the assignment is not yet evaluated.
 						continue;
 					}
 					if ( $submitted_info ) {
-						$submitted_id = $submitted_info->comment_ID;
-						$max_mark     = tutor_utils()->get_assignment_option( $submitted_info->comment_post_ID, 'total_mark', 10 );
+						$submitted_id = $submitted_info[0]->comment_ID;
+						$max_mark     = tutor_utils()->get_assignment_option( $submitted_info[0]->comment_post_ID, 'total_mark', 10 );
 
 						$given_mark = get_comment_meta( $submitted_id, 'assignment_mark', true );
 						if ( $given_mark ) {
@@ -770,7 +842,7 @@ class GradeBook {
 		if ( 'regenerate_gradebook' === $action ) {
 			if ( tutor_utils()->count( $gradebooks_result_ids ) ) {
 				foreach ( $gradebooks_result_ids as $result_id ) {
-					$result = get_generated_gradebook( 'byID', $result_id );
+					$result = tutor_get_generated_gradebook( 'byID', $result_id );
 					$this->gradebook_generate( $result->course_id, $result->user_id );
 				}
 
@@ -781,7 +853,7 @@ class GradeBook {
 		if ( 'trash' === $action ) {
 			if ( tutor_utils()->count( $gradebooks_result_ids ) ) {
 				foreach ( $gradebooks_result_ids as $result_id ) {
-					$result = get_generated_gradebook( 'byID', $result_id );
+					$result = tutor_get_generated_gradebook( 'byID', $result_id );
 					$wpdb->delete(
 						$wpdb->tutor_gradebooks_results,
 						array(
@@ -839,4 +911,60 @@ class GradeBook {
 		wp_send_json_success();
 	}
 
+	/**
+	 * Add grade info to certificate preview
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int $course_id course id.
+	 *
+	 * @return void
+	 */
+	public function add_grade_info_to_certificate_preview( $course_id ) {
+		if ( ! $course_id ) {
+			return;
+		}
+
+		$final_grade = tutor_get_generated_gradebook( 'final', $course_id );
+		if ( $final_grade ) {
+			?>
+			<div class="tutor-medium tutor-sm-text-small tutor-mt-4 tutor-sm-mt-1 tutor-text-secondary">
+			<?php esc_html_e( 'Grade received: ', 'tutor-pro' ); ?>
+			<span class="tutor-font-semibold tutor-text-primary"><?php echo esc_html( $final_grade->earned_percent ?? '' ); ?>%</span>
+		</div>
+			<?php
+		}
+	}
+
+	/**
+	 * Add grade info to certificate info
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int $course_id course id.
+	 *
+	 * @return void
+	 */
+	public function add_grade_info_to_certificate_info( $course_id ) {
+		if ( ! $course_id ) {
+			return;
+		}
+
+		$final_grade = tutor_get_generated_gradebook( 'final', $course_id );
+		if ( $final_grade ) {
+			?>
+			<div class="tutor-p-6 tutor-surface-l1">
+				<div class="tutor-tiny tutor-text-secondary"><?php esc_html_e( 'Grade', 'tutor-pro' ); ?></div>
+				<div class="tutor-p1 tutor-font-bold tutor-text-brand">
+					<span>
+						<?php echo esc_html( $final_grade->earned_percent ? $final_grade->earned_percent . '%' : __( 'N/A', 'tutor-pro' ) ); ?>
+					</span>
+					<?php if ( ! empty( $final_grade->grade_name ) ) : ?>
+						<span>(<?php echo esc_html( $final_grade->grade_name ); ?>)</span>
+					<?php endif; ?>
+				</div>
+			</div>
+			<?php
+		}
+	}
 }

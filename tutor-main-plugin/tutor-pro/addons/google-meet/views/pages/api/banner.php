@@ -30,7 +30,7 @@ $plugin_data = GoogleMeet::meta_data();
 					$content  = _x( 'To integrate with Google Meet, go to this', 'google meet instruction', 'tutor-pro' );
 					$content .= '<a href="https://console.cloud.google.com/apis/dashboard" target="_blank"> ' . _x( 'link', 'google meet instruction', 'tutor-pro' ) . ' </a>';
 					$content .= _x( 'o create your OAuth Access Credentials. During this process, copy the link below and paste it as your Redirect URI. For a more detailed guide, please refer to our ', 'google meet instruction', 'tutor-pro' );
-					$content .= '<a href="https://docs.themeum.com/tutor-lms/addons/google-meet-integration/" target="_blank"> ' . _x( 'documentation', 'google meet instruction', 'tutor-pro' ) . ' </a>';
+					$content .= '<a href="https://tutorlms.com/docs/google-meet-integration-tutor-addon/" target="_blank"> ' . _x( 'documentation', 'google meet instruction', 'tutor-pro' ) . ' </a>';
 					echo wp_kses_post( html_entity_decode( $content ) );
 					?>
 				</div>
@@ -38,7 +38,7 @@ $plugin_data = GoogleMeet::meta_data();
 					<button class="tutor-btn tutor-btn-outline-primary tutor-btn-sm tutor-copy" data-tutor-clipboard-copy-target="tutor-google-meet-redirect-url">
 						<?php esc_html_e( 'Copy', 'tutor-pro' ); ?>
 					</button>
-					<input type="text" class="tutor-form-control" placeholder="" value="<?php echo esc_url( admin_url() . 'admin.php?page=google-meet&tab=set-api' ); ?>" id="tutor-google-meet-redirect-url" />
+					<input type="text" class="tutor-form-control" placeholder="" value="<?php echo esc_url( is_admin() ? admin_url() . 'admin.php?page=google-meet&tab=set-api' : tutor_utils()->tutor_dashboard_url( 'google-meet/set-api' ) ); ?>" id="tutor-google-meet-redirect-url" />
 				</div>
 			</div>
 		</div>

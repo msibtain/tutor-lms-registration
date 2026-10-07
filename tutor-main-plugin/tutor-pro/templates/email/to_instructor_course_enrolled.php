@@ -14,7 +14,7 @@
 
 <head>
 	<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-	<?php require TUTOR_EMAIL()->path . 'views/email_styles.php'; ?>
+	<?php require TUTOR()->path . 'templates/email/email_styles.php'; ?>
 </head>
 
 <body>
@@ -43,7 +43,9 @@
 
 				<div class="tutor-email-buttons">
 					<a target="_blank" class="tutor-email-button-bordered" href="{dashboard_url}"><?php esc_html_e( 'Go to Dashboard', 'tutor-pro' ); ?></a>
+					<?php if ( 'private' !== tutor_utils()->get_option( 'student_public_profile_layout' ) ) : ?>
 					<a target="_blank" class="tutor-email-button" href="{profile_url}"><?php esc_html_e( 'See Student Profile', 'tutor-pro' ); ?></a>
+					<?php endif; ?>
 				</div>
 
 			</div>

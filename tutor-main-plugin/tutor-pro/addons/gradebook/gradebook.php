@@ -30,7 +30,7 @@ add_filter( 'tutor_addons_lists_config', 'tutor_gradebook_config' );
  */
 function tutor_gradebook_config( $config ) {
 	$new_config   = array(
-		'name'        => __( 'Gradebook', 'tutor-multi-instructors' ),
+		'name'        => __( 'Gradebook', 'tutor-pro' ),
 		'description' => __( 'Track student progress with a centralized gradebook.', 'tutor-pro' ),
 	);
 	$basic_config = (array) TUTOR_GB();
@@ -61,5 +61,5 @@ if ( ! function_exists( 'TUTOR_GB' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_GB\Init();

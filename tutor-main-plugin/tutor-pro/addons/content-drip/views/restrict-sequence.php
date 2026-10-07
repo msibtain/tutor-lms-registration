@@ -39,7 +39,10 @@
 
 		<div>
 			<a href="<?php echo esc_url( $previous_permalink ); ?>" class="tutor-btn tutor-btn-primary tutor-mt-36">
-				<?php echo esc_html( sprintf( __( 'Back to %s', 'tutor-pro' ), $previous_content_type ) ); ?>
+				<?php
+				// Translators: %s content type.
+				echo esc_html( sprintf( __( 'Back to %s', 'tutor-pro' ), $previous_content_type ) );
+				?>
 			</a>
 		</div>
 

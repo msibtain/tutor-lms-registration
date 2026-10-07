@@ -14,6 +14,7 @@ namespace TutorPro\RestAPI\Controllers;
 
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use Tutor\Models\CourseModel;
 use TUTOR_PRO_C\Tutor_Calendar;
 use WP_REST_Request;
 
@@ -143,15 +144,15 @@ class StudentController extends BaseController {
 
 			$data->is_instructor = tutor_utils()->is_instructor( $user_id, true );
 
-			$enrolled_courses  = tutor_utils()->get_enrolled_courses_by_user( $user_id );
+			$enrolled_courses  = CourseModel::get_enrolled_courses_by_user( $user_id );
 			$completed_courses = tutor_utils()->get_completed_courses_ids_by_user( $user_id );
-			$active_courses    = tutor_utils()->get_active_courses_by_user( $user_id );
+			$active_courses    = CourseModel::get_active_courses_by_user( $user_id );
 
 			$data->enrolled_course_count  = $enrolled_courses ? $enrolled_courses->post_count : 0;
 			$data->completed_course_count = count( $completed_courses );
 			$data->active_course_count    = is_object( $active_courses ) && $active_courses->have_posts() ? $active_courses->post_count : 0;
 
-			$courses_in_progress = tutor_utils()->get_active_courses_by_user( $user_id );
+			$courses_in_progress = CourseModel::get_active_courses_by_user( $user_id );
 
 			$data->courses_in_progress = $courses_in_progress->get_posts();
 
@@ -213,9 +214,9 @@ class StudentController extends BaseController {
 		try {
 			$data = new \stdClass();
 
-			$enrolled_courses  = tutor_utils()->get_enrolled_courses_by_user( $user_id, array( 'private', 'publish' ) );
-			$active_courses    = tutor_utils()->get_active_courses_by_user( $user_id );
-			$completed_courses = tutor_utils()->get_courses_by_user( $user_id );
+			$enrolled_courses  = CourseModel::get_enrolled_courses_by_user( $user_id, array( 'private', 'publish' ) );
+			$active_courses    = CourseModel::get_active_courses_by_user( $user_id );
+			$completed_courses = CourseModel::get_completed_courses_by_user( $user_id );
 
 			$data->enrolled_courses  = is_object( $enrolled_courses ) ? $enrolled_courses->get_posts() : $enrolled_courses;
 			$data->active_courses    = is_object( $active_courses ) ? $active_courses->get_posts() : $active_courses;
@@ -270,9 +271,18 @@ class StudentController extends BaseController {
 		$per_page    = ! empty( $params['per_page'] ) ? (int) $params['per_page'] : 10;
 
 		try {
-			$order_histories = tutor_utils()->get_orders_by_user_id( $user_id, $time_period, $start_date, $end_date, $offset, $per_page );
+			$params = array(
+				'period'     => $time_period,
+				'start_date' => $start_date,
+				'end_date'   => $end_date,
+				'limit'      => $per_page,
+				'offset'     => $offset,
+			);
 
-			foreach ( $order_histories as &$order ) {
+			$order_histories = tutor_utils()->get_orders_by_user_id( $user_id, $params );
+			$results         = $order_histories->results ?? array();
+
+			foreach ( $results as &$order ) {
 				$courses        = tutor_utils()->get_course_enrolled_ids_by_order_id( $order->ID );
 				$order->courses = array();
 				foreach ( $courses as $course ) {
@@ -283,7 +293,7 @@ class StudentController extends BaseController {
 			return $this->response(
 				$this->code_read,
 				__( 'Order History retrieved successfully', 'tutor-pro' ),
-				$order_histories
+				$results
 			);
 		} catch ( \Throwable $th ) {
 			return $this->response(

@@ -9,6 +9,8 @@
  * @since 1.3.5
  */
 
+defined( 'ABSPATH' ) || exit;
+
 ?>
 <form class="tutor-pmpro-single-course-pricing">
 	<h3 class="tutor-fs-5 tutor-fw-bold tutor-mb-16"><?php esc_html_e( 'Pick a plan', 'tutor-pro' ); ?></h3>
@@ -41,7 +43,7 @@
 		<label for="<?php echo esc_attr( $level_id ); ?>" class="<?php echo $highlight ? 'tutor-pmpro-level-highlight' : ''; ?>">
 			<div class="tutor-pmpro-level-header tutor-d-flex tutor-align-center tutor-justify-between">
 				<div class="tutor-d-flex tutor-align-center">
-					<span class="tutor-form-check-input tutor-form-check-input-radio" area-hidden="true"></span>
+					<span class="tutor-form-check-input tutor-form-check-input-radio" aria-hidden="true"></span>
 					<span class="tutor-fs-5 tutor-fw-medium tutor-ml-12"><?php echo esc_html( $level->name ); ?></span>
 				</div>
 
@@ -72,7 +74,12 @@
 				</a>
 
 				<?php if ( $money_back ) : ?>
-					<div class="tutor-fs-6 tutor-color-muted tutor-mt-16 tutor-text-center"><?php echo sprintf( esc_html__( '%d-day money-back guarantee', 'tutor-pro' ), $money_back ); //phpcs:ignore?></div>
+					<div class="tutor-fs-6 tutor-color-muted tutor-mt-16 tutor-text-center">
+						<?php
+						printf(
+							// translators: %d: Number of days.
+							esc_html__( '%d-day money-back guarantee', 'tutor-pro' ), $money_back ); //phpcs:ignore?>
+					</div>
 				<?php endif; ?>
 			</div>
 		</label>

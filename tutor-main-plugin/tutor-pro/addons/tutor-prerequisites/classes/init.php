@@ -10,26 +10,59 @@
 
 namespace TUTOR_PREREQUISITES;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
-class init {
+/**
+ * Class Init
+ *
+ * @since 1.0.0
+ */
+class Init {
+	/**
+	 * Version
+	 *
+	 * @var string
+	 */
 	public $version = TUTOR_PREREQUISITES_VERSION;
+	/**
+	 * Path
+	 *
+	 * @var string
+	 */
 	public $path;
+	/**
+	 * URL
+	 *
+	 * @var string
+	 */
 	public $url;
+	/**
+	 * Basename
+	 *
+	 * @var string
+	 */
 	public $basename;
 
-	// Module
+	/**
+	 * Prerequisites class instance
+	 *
+	 * @var Prerequisites
+	 */
 	public $prerequisites;
 
-	function __construct() {
+	/**
+	 * Init constructor.
+	 *
+	 * @since 1.0.0
+	 */
+	public function __construct() {
 		if ( ! function_exists( 'tutor' ) ) {
 			return;
 		}
-		$addonConfig = tutor_utils()->get_addon_config( TUTOR_PREREQUISITES()->basename );
-		$isEnable    = (bool) tutor_utils()->avalue_dot( 'is_enable', $addonConfig );
-		if ( ! $isEnable ) {
+
+		$addon_config = tutor_utils()->get_addon_config( TUTOR_PREREQUISITES()->basename );
+		$is_enable    = (bool) tutor_utils()->avalue_dot( 'is_enable', $addon_config );
+		if ( ! $is_enable ) {
 			return;
 		}
 
@@ -37,33 +70,38 @@ class init {
 		$this->url      = plugin_dir_url( TUTOR_PREREQUISITES_FILE );
 		$this->basename = plugin_basename( TUTOR_PREREQUISITES_FILE );
 
-		$this->load_TUTOR_PREREQUISITES();
+		$this->load_tutor_prerequisites();
 	}
 
-	public function load_TUTOR_PREREQUISITES() {
-		/**
-		 * Loading Autoloader
-		 */
-
+	/**
+	 * Load tutor prerequisites
+	 *
+	 * @since 1.0.0
+	 */
+	public function load_tutor_prerequisites() {
 		spl_autoload_register( array( $this, 'loader' ) );
 		$this->prerequisites = new Prerequisites();
 	}
 
 	/**
-	 * @param $className
+	 * SPL auto loader
 	 *
-	 * Auto Load class and the files
+	 * @since 1.0.0
+	 *
+	 * @param string $class_name Class name.
+	 *
+	 * @return void
 	 */
-	private function loader( $className ) {
-		if ( ! class_exists( $className ) ) {
-			$className = preg_replace(
+	private function loader( $class_name ) {
+		if ( ! class_exists( $class_name ) ) {
+			$class_name = preg_replace(
 				array( '/([a-z])([A-Z])/', '/\\\/' ),
 				array( '$1$2', DIRECTORY_SEPARATOR ),
-				$className
+				$class_name
 			);
 
-			$className = str_replace( 'TUTOR_PREREQUISITES' . DIRECTORY_SEPARATOR, 'classes' . DIRECTORY_SEPARATOR, $className );
-			$file_name = $this->path . $className . '.php';
+			$class_name = str_replace( 'TUTOR_PREREQUISITES' . DIRECTORY_SEPARATOR, 'classes' . DIRECTORY_SEPARATOR, $class_name );
+			$file_name  = $this->path . $class_name . '.php';
 
 			if ( file_exists( $file_name ) && is_readable( $file_name ) ) {
 				require_once $file_name;
@@ -71,18 +109,23 @@ class init {
 		}
 	}
 
-
-	// Run the TUTOR right now
+	/**
+	 * Run the addon
+	 *
+	 * @since 1.0.0
+	 */
 	public function run() {
 		register_activation_hook( TUTOR_PREREQUISITES_FILE, array( $this, 'tutor_activate' ) );
 	}
 
 	/**
 	 * Do some task during plugin activation
+	 *
+	 * @since 1.0.0
 	 */
 	public function tutor_activate() {
 		$version = get_option( 'TUTOR_PREREQUISITES_version' );
-		// Save Option
+		// Save Option.
 		if ( ! $version ) {
 			update_option( 'TUTOR_PREREQUISITES_version', TUTOR_PREREQUISITES_VERSION );
 		}

@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use TUTOR\Icon;
 use TUTOR\Input;
 use Tutor\Models\CourseModel;
 
@@ -24,6 +25,9 @@ use Tutor\Models\CourseModel;
  * @since 2.1.0
  */
 class Dashboard {
+
+	const LIVE_CLASSES_MENU = 'live-classes';
+
 	/**
 	 * Constructor
 	 *
@@ -32,8 +36,8 @@ class Dashboard {
 	public function __construct( $register_hooks = true ) {
 		if ( $register_hooks ) {
 			add_action( 'wp_loaded', array( $this, 'handle_course_status' ) );
+			add_filter( 'tutor_instructor_dashboard_nav', array( $this, 'add_live_class_menu' ) );
 		}
-
 	}
 
 	/**
@@ -95,5 +99,27 @@ class Dashboard {
 		}
 
 		tutor_utils()->redirect_to( $link, $flash_message );
+	}
+
+	/**
+	 * Add live class if Zoom/Meet addon is enabled
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array $menu_items Nav menu items.
+	 *
+	 * @return array
+	 */
+	public function add_live_class_menu( array $menu_items ): array {
+		if ( tutor_utils()->is_addon_enabled( 'tutor-zoom' ) || tutor_utils()->is_addon_enabled( 'google-meet' ) ) {
+			$menu_items['live-classes'] = array(
+				'title'       => __( 'Live Classes', 'tutor-pro' ),
+				'icon'        => Icon::VIDEO_CAMERA,
+				'active_icon' => Icon::VIDEO_CAMERA_FILL,
+				'auth_cap'    => tutor()->instructor_role,
+			);
+		}
+
+		return $menu_items;
 	}
 }

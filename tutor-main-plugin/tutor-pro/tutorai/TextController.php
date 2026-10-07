@@ -12,9 +12,9 @@ namespace TutorPro\TutorAI;
 
 use Exception;
 use InvalidArgumentException;
+use Throwable;
 use Tutor\Helpers\HttpHelper;
 use TUTOR\Input;
-use Tutor\Traits\JsonResponse;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -26,14 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 3.0.0
  */
-class TextController {
-
-	/**
-	 * Use the JsonResponse trait for sending HTTP Response.
-	 *
-	 * @since 3.0.0
-	 */
-	use JsonResponse;
+class TextController extends TutorAIBaseController {
 
 	/**
 	 * Constructor method for generating AI Content.
@@ -64,7 +57,7 @@ class TextController {
 	 * @return void
 	 */
 	public function generate_text_content() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$input = array(
 			'prompt'     => Input::post( 'prompt', '' ),
@@ -76,19 +69,12 @@ class TextController {
 		);
 
 		try {
-			$client   = Helper::get_openai_client();
-			$response = $client->chat()->create(
-				Helper::create_openai_chat_input(
-					Prompts::prepare_text_generation_messages( $input )
-				)
-			);
-
-			$response = Helper::check_openai_response( $response );
-			$content  = $response->choices[0]->message->content;
+			$messages = Prompts::prepare_text_generation_messages( $input );
+			$content  = Helper::generate_text( $messages );
 			$content  = $input['is_html'] ? Helper::markdown_to_html( $content ) : $content;
 
 			$this->json_response( __( 'Content generated', 'tutor-pro' ), $content );
-		} catch ( Exception $error ) {
+		} catch ( Throwable $error ) {
 			$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
 		}
 	}
@@ -104,56 +90,49 @@ class TextController {
 	 * @throws InvalidArgumentException If the provided payloads are not valid.
 	 */
 	public function modify_text_content() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$type            = Input::post( 'type' );
 		$is_html         = Input::post( 'is_html', false, Input::TYPE_BOOL );
 		$available_types = array( 'rephrase', 'make_shorter', 'change_tone', 'translation', 'write_as_bullets', 'make_longer', 'simplify_language' );
 
-		if ( ! in_array( $type, $available_types, true ) ) {
-			throw new InvalidArgumentException( sprintf( 'There is no such a type %s exists.', esc_html( $type ) ) );
-		}
-
-		$arguments = array(
-			Input::post( 'content', '' ),
-			Input::post( 'is_html', false, Input::TYPE_BOOL ),
-		);
-
-		switch ( $type ) {
-			case 'change_tone':
-				$arguments[] = Input::post( 'tone', '' );
-				break;
-			case 'translation':
-				$arguments[] = Input::post( 'language', '' );
-				break;
-		}
-
-		$method = 'prepare_' . $type . '_messages';
-
-		if ( ! method_exists( Prompts::class, $method ) ) {
-			throw new InvalidArgumentException(
-				sprintf(
-					'There is no such a method %s into the class %s.',
-					esc_html( $method ),
-					esc_html( Prompts::class )
-				)
-			);
-		}
-
-		$input = Helper::create_openai_chat_input(
-			call_user_func_array( array( Prompts::class, $method ), $arguments )
-		);
-
 		try {
-			$client   = Helper::get_openai_client();
-			$response = $client->chat()->create( $input );
-			$response = Helper::check_openai_response( $response );
+			if ( ! in_array( $type, $available_types, true ) ) {
+				throw new InvalidArgumentException( sprintf( 'There is no such a type %s exists.', esc_html( $type ) ) );
+			}
 
-			$content = $response->choices[0]->message->content;
-			$content = $is_html ? Helper::markdown_to_html( $content ) : $content;
+			$arguments = array(
+				Input::post( 'content', '' ),
+				Input::post( 'is_html', false, Input::TYPE_BOOL ),
+			);
+
+			switch ( $type ) {
+				case 'change_tone':
+					$arguments[] = Input::post( 'tone', '' );
+					break;
+				case 'translation':
+					$arguments[] = Input::post( 'language', '' );
+					break;
+			}
+
+			$method = 'prepare_' . $type . '_messages';
+
+			if ( ! method_exists( Prompts::class, $method ) ) {
+				throw new InvalidArgumentException(
+					sprintf(
+						'There is no such a method %s into the class %s.',
+						esc_html( $method ),
+						esc_html( Prompts::class )
+					)
+				);
+			}
+
+			$messages = call_user_func_array( array( Prompts::class, $method ), $arguments );
+			$content  = Helper::generate_text( $messages );
+			$content  = $is_html ? Helper::markdown_to_html( $content ) : $content;
 
 			$this->json_response( __( 'Content updated', 'tutor-pro' ), $content );
-		} catch ( Exception $error ) {
+		} catch ( Throwable $error ) {
 			$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
 		}
 	}

@@ -18,11 +18,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 global $post, $authordata;
 
-$course_id         = Input::post( 'course_id', get_the_ID(), Input::TYPE_INT );
-$profile_url       = tutor_utils()->profile_url( $authordata->ID, true );
-$show_author       = tutor_utils()->get_option( 'enable_course_author' );
-$is_wish_listed    = tutor_utils()->is_wishlisted( $post->ID, get_current_user_id() );
-$bundle_categories = BundleModel::get_bundle_course_categories( $post->ID );
+$course_id           = Input::post( 'course_id', get_the_ID(), Input::TYPE_INT );
+$profile_url         = tutor_utils()->profile_url( $authordata->ID, true );
+$show_author         = tutor_utils()->get_option( 'enable_course_author' );
+$is_wish_listed      = tutor_utils()->is_wishlisted( $post->ID, get_current_user_id() );
+$bundle_categories   = BundleModel::get_bundle_course_categories( $post->ID );
+$is_enabled_wishlist = tutor_utils()->get_option( 'enable_wishlist', true );
 ?>
 
 <header class="tutor-course-details-header tutor-mb-44">
@@ -51,18 +52,18 @@ $bundle_categories = BundleModel::get_bundle_course_categories( $post->ID );
 					<div>
 						<?php if ( $show_author ) : ?>
 							<span class="tutor-mr-16">
-								<?php esc_html_e( 'By', 'tutor' ); ?>
+								<?php esc_html_e( 'By', 'tutor-pro' ); ?>
 								<a href="<?php echo esc_url( $profile_url ); ?>"><?php echo esc_html( get_the_author_meta( 'display_name' ) ); ?></a>
 							</span>
 						<?php endif; ?>
 
 						<?php if ( ! empty( $bundle_categories ) && is_array( $bundle_categories ) && count( $bundle_categories ) ) : ?>
-							<?php esc_html_e( 'Categories:', 'tutor' ); ?>
+							<?php esc_html_e( 'Categories:', 'tutor-pro' ); ?>
 							<?php
 							$category_links = array();
 							foreach ( $bundle_categories as $course_category ) :
-								$category_name    = $course_category->name;
-								$category_link    = get_term_link( (int) $course_category->term_id );
+								$category_name    = $course_category['name'];
+								$category_link    = get_term_link( (int) $course_category['term_id'] );
 								$category_links[] = wp_sprintf( '<a href="%1$s">%2$s</a>', esc_url( $category_link ), esc_html( $category_name ) );
 								endforeach;
 								echo wp_kses(
@@ -71,7 +72,7 @@ $bundle_categories = BundleModel::get_bundle_course_categories( $post->ID );
 								);
 							?>
 						<?php else : ?>
-							<?php esc_html_e( 'Uncategorized', 'tutor' ); ?>
+							<?php esc_html_e( 'Uncategorized', 'tutor-pro' ); ?>
 						<?php endif; ?>
 					</div>
 				</div>
@@ -79,9 +80,11 @@ $bundle_categories = BundleModel::get_bundle_course_categories( $post->ID );
 
 			<div class="tutor-col-auto">
 				<div class="tutor-course-details-actions tutor-mt-12 tutor-mt-sm-0">
-					<a href="#" class="tutor-btn tutor-btn-ghost tutor-course-wishlist-btn tutor-mr-16" data-course-id="<?php echo get_the_ID(); ?>">
-						<i class="<?php echo $is_wish_listed ? 'tutor-icon-bookmark-bold' : 'tutor-icon-bookmark-line'; ?> tutor-mr-8"></i> <?php esc_html_e( 'Wishlist', 'tutor' ); ?>
+					<?php if ( $is_enabled_wishlist ) : ?>
+					<a href="#" class="tutor-btn tutor-btn-ghost tutor-course-wishlist-btn tutor-mr-16" data-course-id="<?php echo esc_attr( get_the_ID() ); ?>">
+						<i class="<?php echo $is_wish_listed ? 'tutor-icon-bookmark-bold' : 'tutor-icon-bookmark-line'; ?> tutor-mr-8"></i> <?php esc_html_e( 'Wishlist', 'tutor-pro' ); ?>
 					</a>
+					<?php endif; ?>
 
 					<?php
 					if ( tutor_utils()->get_option( 'enable_course_share', false, true, true ) ) {

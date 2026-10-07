@@ -11,6 +11,9 @@
 namespace TUTOR_PRO;
 
 use TUTOR\Input;
+use Tutor\Helpers\QueryHelper;
+use Tutor\Models\CourseModel;
+use TUTOR_PRO\Traits\QuizMaskDuplicator;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -20,6 +23,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Class Course Duplicator
  */
 class Course_Duplicator {
+	use QuizMaskDuplicator;
+
+	/**
+	 * Question types that store instructor masks in answer_two_gap_match.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @var string[]
+	 */
+	private const MASK_QUESTION_TYPES = array( 'draw_image', 'pin_image', 'puzzle' );
 	/**
 	 * Post columns
 	 *
@@ -57,22 +70,23 @@ class Course_Duplicator {
 	);
 
 	/**
-	 * Allowed user role
-	 *
-	 * @var array
-	 */
-	private $allowed_user_role = array(
-		'administrator',
-		'editor',
-		'tutor_instructor',
-	);
-
-	/**
 	 * Store duplicated IDs here to avoid accidental infinity recursion.
 	 *
 	 * @var array
 	 */
 	private $duplicated_post_ids = array();
+
+	/**
+	 * Map of source post ID => duplicated post ID.
+	 *
+	 * Used to rewrite internal references (content drip prerequisites,
+	 * lesson/assignment course links) after the full course tree is copied.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @var array<int,int>
+	 */
+	private $id_map = array();
 
 	/**
 	 * Register hooks
@@ -89,6 +103,28 @@ class Course_Duplicator {
 	}
 
 	/**
+	 * Build a nonce-protected duplicate URL.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int  $course_id   Course ID.
+	 * @param bool $is_wp_admin Whether the request originates from WP admin.
+	 *
+	 * @return string
+	 */
+	private function get_duplicate_url( $course_id, bool $is_wp_admin ): string {
+		$url = add_query_arg(
+			array(
+				'tutor_action' => 'duplicate_course',
+				'is_wp_admin'  => $is_wp_admin ? 'yes' : 'no',
+				'course_id'    => (int) $course_id,
+			)
+		);
+
+		return wp_nonce_url( $url, tutor()->nonce_action, tutor()->nonce );
+	}
+
+	/**
 	 * Get duplicator HTML
 	 *
 	 * @param int     $course_id course id.
@@ -98,8 +134,8 @@ class Course_Duplicator {
 	 * @return string
 	 */
 	private function get_duplicator_html( $course_id, bool $is_wp_admin, $class = '' ) {
-		return '<a class="' . $class . '" href="?tutor_action=duplicate_course&is_wp_admin=' . ( $is_wp_admin ? 'yes' : 'no' ) . '&course_id=' . $course_id . '" aria-label="' . __( 'Duplicate', 'tutor-pro' ) . '">
-                ' . __( 'Duplicate', 'tutor-pro' ) . '
+		return '<a class="' . esc_attr( $class ) . '" href="' . esc_url( $this->get_duplicate_url( $course_id, $is_wp_admin ) ) . '" aria-label="' . esc_attr__( 'Duplicate', 'tutor-pro' ) . '">
+                ' . esc_html__( 'Duplicate', 'tutor-pro' ) . '
             </a>';
 	}
 
@@ -123,6 +159,10 @@ class Course_Duplicator {
 	 * @return void
 	 */
 	public function duplicate_button_in_dashboard( $course_id ) {
+		if ( ! tutor_utils()->can_user_manage( 'course', $course_id ) ) {
+			return;
+		}
+
 		echo wp_kses_post( $this->get_duplicator_html( $course_id, false, 'tutor-mycourse-edit' ) );
 	}
 
@@ -135,7 +175,7 @@ class Course_Duplicator {
 	 * @return array
 	 */
 	public function register_duplicate_button( $actions, $post ) {
-		if ( tutor()->course_post_type === $post->post_type ) {
+		if ( tutor()->course_post_type === $post->post_type && tutor_utils()->can_user_manage( 'course', $post->ID ) ) {
 			$actions[] = $this->get_duplicator_html( $post->ID, true );
 		}
 
@@ -145,54 +185,45 @@ class Course_Duplicator {
 	/**
 	 * Handle Course duplicate for WP Admin and Frontend Dashboard
 	 *
-	 * @return void
+	 * Requires a valid Tutor nonce and course management permission.
 	 *
 	 * @since 2.0.0
+	 * @since 4.1.0 Require nonce and can_user_manage ownership check.
+	 *
+	 * @return void
 	 */
 	public function init_duplicator() {
 		$action = Input::get( 'tutor_action' );
 		$id     = Input::get( 'course_id', 0, Input::TYPE_INT );
-
 		if ( 'duplicate_course' !== $action || 0 === $id ) {
 			return;
 		}
 
-		if ( $this->is_valid_user_role() ) {
-			// Duplicate the post.
-			$new_post_id = $this->duplicate_post( $id );
+		if ( ! tutor_utils()->is_nonce_verified( 'GET' ) ) {
+			wp_die( esc_html( tutor_utils()->error_message( 'nonce' ) ) );
+		}
 
-			if ( $new_post_id ) {
-				$is_wp_admin   = is_admin();
-				$flash_message = __( 'Course Duplicated Successfully!', 'tutor-pro' );
-				if ( $is_wp_admin ) {
-					$link = admin_url( 'admin.php?page=tutor' );
-				} else {
-					$link = tutor_utils()->tutor_dashboard_url( 'my-courses/draft-courses' );
-				}
+		$course = get_post( $id );
+		if ( ! $course || tutor()->course_post_type !== $course->post_type || ! tutor_utils()->can_user_manage( 'course', $id ) ) {
+			wp_die( esc_html__( 'You are not allowed for this action.', 'tutor-pro' ) );
+		}
 
-				tutor_utils()->redirect_to( $link, $flash_message );
-				exit;
+		$new_post_id = $this->duplicate_post( $id );
+
+		if ( $new_post_id ) {
+			$is_wp_admin   = is_admin();
+			$flash_message = __( 'Course Duplicated Successfully!', 'tutor-pro' );
+			if ( $is_wp_admin ) {
+				$link = admin_url( 'admin.php?page=tutor' );
+			} else {
+				$link = tutor_utils()->tutor_dashboard_url( 'my-courses/draft-courses' );
 			}
+
+			tutor_utils()->redirect_to( $link, $flash_message );
+			exit;
 		}
 
-		exit( 'You are not allowed for this action.' );
-	}
-
-	/**
-	 * Check is valid user role.
-	 *
-	 * @return boolean
-	 */
-	private function is_valid_user_role() {
-		$current_user = wp_get_current_user();
-
-		if ( is_object( $current_user ) && property_exists( $current_user, 'roles' ) ) {
-			$roles            = (array) $current_user->roles;
-			$different        = array_diff( $this->allowed_user_role, $roles );
-			$exist_in_allowed = count( $different ) < count( $this->allowed_user_role );
-
-			return $exist_in_allowed;
-		}
+		wp_die( esc_html__( 'You are not allowed for this action.', 'tutor-pro' ) );
 	}
 
 	/**
@@ -203,12 +234,19 @@ class Course_Duplicator {
 	 * @param int $new_parent_id optional.
 	 * @param int $new_id optional.
 	 *
-	 * @return void
+	 * @return int|false|void New post ID on success, false/void on failure.
 	 */
 	public function duplicate_post( $post_id, $absolute_course_id = null, $new_parent_id = 0, $new_id = null ) {
 
 		if ( ! $post_id || ! is_numeric( $post_id ) ) {
 			return;
+		}
+
+		$is_root_duplicate = ( 0 === (int) $new_parent_id && null === $absolute_course_id );
+
+		if ( $is_root_duplicate ) {
+			$this->id_map              = array();
+			$this->duplicated_post_ids = array();
 		}
 
 		$post = get_post( $post_id );
@@ -235,6 +273,8 @@ class Course_Duplicator {
 		 * @since v2.0.0
 		 */
 		if ( $new_id ) {
+			$this->id_map[ (int) $post_id ] = (int) $new_id;
+
 			$has_duplicator_of_post = get_post_meta( $post_id, 'tutor-course-duplicate-' . $post_id, true );
 			if ( $has_duplicator_of_post ) {
 				update_post_meta( $post_id, 'tutor-course-duplicate-' . $post_id, (int) ++$has_duplicator_of_post );
@@ -272,7 +312,7 @@ class Course_Duplicator {
 		$childs = $this->get_child_post_ids( $post_id );
 
 		foreach ( $childs as $child_id ) {
-			if ( in_array( (int) $child_id, $this->duplicated_post_ids ) ) {
+			if ( in_array( (int) $child_id, $this->duplicated_post_ids, true ) ) {
 				// Avoid accidental infinity recursion.
 				continue;
 			}
@@ -280,7 +320,70 @@ class Course_Duplicator {
 			$this->duplicate_post( $child_id, ( $absolute_course_id ? $absolute_course_id : $new_id ), $new_id );
 		}
 
+		/**
+		 * After the full course tree is copied, rewrite internal IDs so the
+		 * duplicate is self-contained (content drip prereqs, course links).
+		 *
+		 * @since 4.1.0
+		 */
+		if ( $is_root_duplicate && $new_id ) {
+			$this->remap_internal_references( (int) $new_id );
+			$this->copy_course_instructors( (int) $post_id, (int) $new_id );
+		}
+
 		return $new_id;
+	}
+
+	/**
+	 * Attach source-course instructors to the duplicated course.
+	 *
+	 * Instructors are stored as user meta (`_tutor_instructor_course_id`),
+	 * not post meta, so a plain meta copy never preserves co-instructors.
+	 * The source author is included because the copy uses the current user
+	 * as `post_author`.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $source_course_id Source course ID.
+	 * @param int $new_course_id    Duplicated course ID.
+	 *
+	 * @return void
+	 */
+	private function copy_course_instructors( int $source_course_id, int $new_course_id ): void {
+		if ( $source_course_id <= 0 || $new_course_id <= 0 ) {
+			return;
+		}
+
+		$instructor_ids   = CourseModel::get_course_instructor_ids( $source_course_id );
+		$source_author_id = (int) get_post_field( 'post_author', $source_course_id );
+		$new_author_id    = (int) get_post_field( 'post_author', $new_course_id );
+
+		if ( $source_author_id > 0 ) {
+			$instructor_ids[] = $source_author_id;
+		}
+
+		if ( $new_author_id > 0 ) {
+			$instructor_ids[] = $new_author_id;
+		}
+
+		$instructor_ids = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'intval', $instructor_ids )
+				)
+			)
+		);
+
+		foreach ( $instructor_ids as $instructor_id ) {
+			$existing_course_ids = get_user_meta( $instructor_id, '_tutor_instructor_course_id', false );
+			$already_attached    = in_array( (string) $new_course_id, array_map( 'strval', (array) $existing_course_ids ), true );
+
+			if ( $already_attached ) {
+				continue;
+			}
+
+			add_user_meta( $instructor_id, '_tutor_instructor_course_id', $new_course_id );
+		}
 	}
 
 	/**
@@ -303,7 +406,7 @@ class Course_Duplicator {
 
 			// Convert to singular value from second level array.
 			$value = is_array( $value ) ? ( isset( $value[0] ) ? $value[0] : '' ) : '';
-			$value = is_serialized( $value ) ? unserialize( $value ) : $value;
+			$value = is_serialized( $value ) ? unserialize( $value ) : $value; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
 
 			// Replace old course ID meta with new one.
 			'_tutor_course_price_type' === $name ? $value = 'free' : 0;
@@ -320,8 +423,134 @@ class Course_Duplicator {
 			if ( '_tutor_course_id_for_assignments' === $name ) {
 				$value = $absolute_course_id;
 			}
+
+			/**
+			 * Lesson course link must point at the duplicated course.
+			 *
+			 * @since 4.1.0
+			 */
+			if ( '_tutor_course_id_for_lesson' === $name && $absolute_course_id ) {
+				$value = $absolute_course_id;
+			}
+
 			update_post_meta( $new_id, $name, $value );
 		}
+	}
+
+	/**
+	 * Rewrite internal content IDs after a course tree has been duplicated.
+	 *
+	 * Remaps content-drip prerequisite IDs to their counterparts in the copy.
+	 * IDs with no match in the map are dropped so the copy cannot lock
+	 * students behind content that lives only on the source course.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $new_course_id Newly created (or target) course ID.
+	 *
+	 * @return void
+	 */
+	private function remap_internal_references( int $new_course_id ): void {
+		if ( empty( $this->id_map ) ) {
+			return;
+		}
+
+		foreach ( $this->id_map as $new_post_id ) {
+			$new_post_id = (int) $new_post_id;
+
+			$this->remap_content_drip_prerequisites( $new_post_id );
+			$this->remap_quiz_option_drip_prerequisites( $new_post_id );
+
+			if ( get_post_meta( $new_post_id, '_tutor_course_id_for_lesson', true ) ) {
+				update_post_meta( $new_post_id, '_tutor_course_id_for_lesson', $new_course_id );
+			}
+
+			if ( get_post_meta( $new_post_id, '_tutor_course_id_for_assignments', true ) ) {
+				update_post_meta( $new_post_id, '_tutor_course_id_for_assignments', $new_course_id );
+			}
+		}
+	}
+
+	/**
+	 * Remap prerequisite IDs stored in `_content_drip_settings`.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $post_id Duplicated content post ID.
+	 *
+	 * @return void
+	 */
+	private function remap_content_drip_prerequisites( int $post_id ): void {
+		$settings = get_post_meta( $post_id, '_content_drip_settings', true );
+		if ( ! is_array( $settings ) || empty( $settings['prerequisites'] ) ) {
+			return;
+		}
+
+		$settings['prerequisites'] = $this->remap_id_list( $settings['prerequisites'] );
+		update_post_meta( $post_id, '_content_drip_settings', $settings );
+	}
+
+	/**
+	 * Remap prerequisite IDs nested inside `tutor_quiz_option`.
+	 *
+	 * Quiz builder also stores drip settings under quiz options; keep both
+	 * stores in sync after duplication.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $post_id Duplicated quiz post ID.
+	 *
+	 * @return void
+	 */
+	private function remap_quiz_option_drip_prerequisites( int $post_id ): void {
+		$quiz_option = get_post_meta( $post_id, 'tutor_quiz_option', true );
+		if ( ! is_array( $quiz_option ) ) {
+			return;
+		}
+
+		if ( empty( $quiz_option['content_drip_settings'] ) || ! is_array( $quiz_option['content_drip_settings'] ) ) {
+			return;
+		}
+
+		if ( empty( $quiz_option['content_drip_settings']['prerequisites'] ) ) {
+			return;
+		}
+
+		$quiz_option['content_drip_settings']['prerequisites'] = $this->remap_id_list(
+			$quiz_option['content_drip_settings']['prerequisites']
+		);
+		update_post_meta( $post_id, 'tutor_quiz_option', $quiz_option );
+	}
+
+	/**
+	 * Map a list of source content IDs to duplicated IDs.
+	 *
+	 * Unmapped IDs are dropped.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param mixed $ids List of IDs (array) or a single ID.
+	 *
+	 * @return array<int>
+	 */
+	private function remap_id_list( $ids ): array {
+		if ( ! is_array( $ids ) ) {
+			$ids = array( $ids );
+		}
+
+		$mapped = array();
+		foreach ( $ids as $id ) {
+			$id = (int) $id;
+			if ( $id <= 0 ) {
+				continue;
+			}
+
+			if ( isset( $this->id_map[ $id ] ) ) {
+				$mapped[] = (int) $this->id_map[ $id ];
+			}
+		}
+
+		return array_values( array_unique( $mapped ) );
 	}
 
 	/**
@@ -382,6 +611,10 @@ class Course_Duplicator {
 
 				// Insert new row.
 				$wpdb->insert( $context_table, $context );
+				$new_row_id = (int) $wpdb->insert_id;
+				if ( $is_answer && $new_row_id > 0 ) {
+					$this->update_inserted_answer_mask_url( $new_row_id, $context, $context_table );
+				}
 
 				// Now copy quiz question answers.
 				! $is_answer ? $this->duplicate_quiz_dependency( $old_stuff_id, $wpdb->insert_id, true ) : 0;
@@ -440,6 +673,82 @@ class Course_Duplicator {
 	}
 
 	/**
+	 * Duplicate draw/pin mask file for copied quiz answers.
+	 *
+	 * Keeps non draw/pin question types unchanged.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array $answer_row Raw quiz answer row data.
+	 *
+	 * @return array
+	 */
+	private function duplicate_mask_if_needed( array $answer_row ): array {
+		$question_type = isset( $answer_row['belongs_question_type'] ) ? str_replace( '-', '_', (string) $answer_row['belongs_question_type'] ) : '';
+		$mask = isset( $answer_row['answer_two_gap_match'] ) ? self::normalize_quiz_mask_value( (string) $answer_row['answer_two_gap_match'] ) : '';
+		if ( '' === $mask ) {
+			$answer_row['answer_two_gap_match'] = '';
+			return $answer_row;
+		}
+
+		$is_supported_type = in_array( $question_type, self::MASK_QUESTION_TYPES, true );
+		$is_quiz_mask_path = false !== strpos( $mask, '/tutor/quiz-images/' )
+			|| '' !== QuizImageStorage::sanitize_quiz_image_filename( $mask );
+		if ( ! $is_supported_type && ! $is_quiz_mask_path ) {
+			return $answer_row;
+		}
+
+		// Default by source path if question type is unavailable/unexpected in source row.
+		if ( ! $is_supported_type ) {
+			if ( false !== strpos( $mask, '/puzzle-' ) || 0 === strpos( $mask, 'puzzle-' ) ) {
+				$question_type = 'puzzle';
+			} else {
+				$question_type = false !== strpos( $mask, '/pin-mask-' ) || 0 === strpos( $mask, 'pin-mask-' ) ? 'pin_image' : 'draw_image';
+			}
+		}
+
+		// Fast path: clone existing local quiz-images file to a new file.
+		$cloned_mask_url = $this->clone_local_quiz_mask_file( $mask, $question_type );
+		if ( '' !== $cloned_mask_url ) {
+			$answer_row['answer_two_gap_match'] = $cloned_mask_url;
+			return $answer_row;
+		}
+
+		$answer_row['answer_two_gap_match'] = $mask;
+		return $answer_row;
+	}
+
+	/**
+	 * Regenerate and update mask URL for an inserted duplicated answer row.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param int    $answer_id     Newly inserted answer ID.
+	 * @param array  $source_row    Source row used for insert.
+	 * @param string $answers_table Answer table name.
+	 *
+	 * @return void
+	 */
+	private function update_inserted_answer_mask_url( int $answer_id, array $source_row, string $answers_table ): void {
+		$updated = $this->duplicate_mask_if_needed( $source_row );
+		$new_url = isset( $updated['answer_two_gap_match'] ) ? (string) $updated['answer_two_gap_match'] : '';
+		$old_url = isset( $source_row['answer_two_gap_match'] ) ? (string) $source_row['answer_two_gap_match'] : '';
+
+		$new_url = self::normalize_quiz_mask_value( $new_url );
+		$old_url = self::normalize_quiz_mask_value( $old_url );
+
+		if ( '' === $new_url || $new_url === $old_url ) {
+			return;
+		}
+
+		QueryHelper::update(
+			$answers_table,
+			array( 'answer_two_gap_match' => $new_url ),
+			array( 'answer_id' => $answer_id )
+		);
+	}
+
+	/**
 	 * Add course duplicate menu.
 	 *
 	 * @param int $id id.
@@ -447,11 +756,15 @@ class Course_Duplicator {
 	 * @return void
 	 */
 	public function add_course_duplicate_menu( $id ) {
-		$duplicate = '?tutor_action=duplicate_course&is_wp_admin=' . ( is_admin() ? 'yes' : 'no' ) . '&course_id=' . $id;
+		if ( ! tutor_utils()->can_user_manage( 'course', $id ) ) {
+			return;
+		}
+
+		$duplicate = $this->get_duplicate_url( $id, is_admin() );
 		?>
 		<a class="tutor-dropdown-item" href="<?php echo esc_url( $duplicate ); ?>">
-			<i class="tutor-icon-copy tutor-mr-8" area-hidden="true"></i>
-			<span><?php esc_html_e( 'Duplicate', 'tutor' ); ?></span>
+			<i class="tutor-icon-copy tutor-mr-8" aria-hidden="true"></i>
+			<span><?php esc_html_e( 'Duplicate', 'tutor-pro' ); ?></span>
 		</a>
 		<?php
 	}
@@ -466,7 +779,7 @@ class Course_Duplicator {
 	 *
 	 * @since v2.0.0
 	 */
-	public static function update_course( array $where, array $data ) : bool {
+	public static function update_course( array $where, array $data ): bool {
 		global $wpdb;
 		$table  = $wpdb->posts;
 		$update = $wpdb->update(

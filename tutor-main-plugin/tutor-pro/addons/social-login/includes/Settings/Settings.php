@@ -67,7 +67,11 @@ class Settings {
 						'key'         => 'google_client_ID',
 						'type'        => 'text',
 						'label'       => __( 'Client ID', 'tutor-pro' ),
-						'desc'        => __( 'Enter your <a href="https://docs.themeum.com/tutor-lms/tutorials/get-google-client-id/" target="_blank">Google Client ID</a> here.' . $copy_btn, 'tutor-pro' ),
+						'desc'        => sprintf(
+							// Translators: %s documentation link.
+							__( 'Enter your %s here.', 'tutor-pro' ),
+							'<a href="https://tutorlms.com/docs/how-to-get-google-client-id-tutorial/" target="_blank">' . esc_html__( 'Google Client ID', 'tutor-pro' ) . '</a>'
+						) . $copy_btn,
 						'placeholder' => __( 'Enter your Google Client ID here', 'tutor-pro' ),
 					),
 				),
@@ -91,7 +95,12 @@ class Settings {
 					'key'         => 'facebook_app_ID',
 					'type'        => 'text',
 					'label'       => __( 'App ID', 'tutor-pro' ),
-					'desc'        => __( 'Enter your <a href="https://docs.themeum.com/tutor-lms/tutorials/get-facebook-app-id/" target="_blank">Facebook App ID</a> here.' . $copy_btn, 'tutor-pro' ),
+					'desc'        => sprintf(
+						// Translators: %s documentation link.
+						esc_html__( 'Enter your %s here.', 'tutor-pro' ),
+						'<a href="https://tutorlms.com/docs/how-to-get-a-facebook-app-id-tutorial/ " target="_blank">' . esc_html__( 'Facebook App ID', 'tutor-pro' ) . '</a>'
+					) . $copy_btn,
+
 					'placeholder' => __( 'Enter your Facebook App ID here', 'tutor-pro' ),
 				),
 			),
@@ -114,14 +123,24 @@ class Settings {
 					'key'         => 'twitter_app_key',
 					'type'        => 'text',
 					'label'       => __( 'App Key', 'tutor-pro' ),
-					'desc'        => __( 'Enter your <a href="https://docs.themeum.com/tutor-lms/tutorials/how-to-get-twitter-api-key/" target="_blank">Twitter App Key</a> here.', 'tutor-pro' ),
+					'desc'        => sprintf(
+					// Translators: %s documentation link.
+						esc_html__( 'Enter your %s here.', 'tutor-pro' ),
+						'<a href="https://tutorlms.com/docs/how-to-get-twitter-api-key-tutorial/" target="_blank">' . esc_html__( 'Twitter App Key', 'tutor-pro' ) . '</a>'
+					),
+
 					'placeholder' => __( 'Enter your Twitter App Key here', 'tutor-pro' ),
 				),
 				array(
 					'key'         => 'twitter_app_key_secret',
 					'type'        => 'text',
 					'label'       => __( 'App Key Secret', 'tutor-pro' ),
-					'desc'        => __( 'Enter your <a href="https://docs.themeum.com/tutor-lms/tutorials/how-to-get-twitter-api-key/" target="_blank">Twitter App Key Secret</a> here.' . $twitter_copy_btn, 'tutor-pro' ),
+					'desc'        => sprintf(
+					// Translators: %s documentation link.
+						esc_html__( 'Enter your %s here.', 'tutor-pro' ),
+						'<a href="https://tutorlms.com/docs/how-to-get-twitter-api-key-tutorial/" target="_blank">' . esc_html__( 'Twitter App Key Secret', 'tutor-pro' ) . '</a>'
+					) . $twitter_copy_btn,
+
 					'placeholder' => __( 'Enter your Twitter App Key Secret here', 'tutor-pro' ),
 				),
 			),

@@ -46,17 +46,18 @@ class EmailSettings {
 	 *
 	 * @since 2.5.0
 	 *
-	 * @param bool $reuse reuse the class or not.
+	 * @param bool $register_hooks register hooks or not.
 	 *
 	 * @return mixed
 	 */
-	public function __construct( $reuse = false ) {
-		if ( $reuse ) {
+	public function __construct( $register_hooks = true ) {
+		if ( ! $register_hooks ) {
 			return;
 		}
 
 		add_filter( 'tutor_option_input', array( $this, 'merge_email_default_config_data' ) );
 		add_action( 'wp_ajax_save_email_settings', array( $this, 'save_email_settings' ) );
+		add_filter( 'tutor_email_settings', fn() => new self( false ) );
 	}
 
 	/**
@@ -306,5 +307,23 @@ class EmailSettings {
 		}
 
 		return $defaults;
+	}
+
+	/**
+	 * Get color group labels
+	 *
+	 * @since 3.2.2
+	 *
+	 * @return array
+	 */
+	public static function get_color_group_labels() {
+		$color_group_labels = array(
+			'body_header'      => __( 'Body Header', 'tutor-pro' ),
+			'email_body'       => __( 'Email Body', 'tutor-pro' ),
+			'primary_button'   => __( 'Primary Button', 'tutor-pro' ),
+			'secondary_button' => __( 'Secondary Button', 'tutor-pro' ),
+		);
+
+		return $color_group_labels;
 	}
 }

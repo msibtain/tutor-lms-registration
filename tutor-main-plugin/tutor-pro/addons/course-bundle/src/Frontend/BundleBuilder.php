@@ -35,15 +35,55 @@ class BundleBuilder {
 	const QUERY_PARAM = 'create-bundle';
 
 	/**
+	 * Page slug on the admin side
+	 *
+	 * @since 3.20
+	 *
+	 * @var string
+	 */
+	const ADMIN_PAGE_SLUG = 'course-bundle';
+
+	/**
+	 * Action type for the bundle builder
+	 *
+	 * @since 3.2.0
+	 */
+	const ACTION_TYPE_ADD  = 'add-new';
+	const ACTION_TYPE_EDIT = 'edit';
+
+	/**
 	 * Register hooks
 	 *
 	 * @since 2.2.0
 	 */
 	public function __construct() {
 		add_action( 'admin_bar_menu', __CLASS__ . '::add_admin_toolbar', 100 );
-		add_action( 'template_include', __CLASS__ . '::include_frontend_builder', 100 );
+
+		add_action( 'template_include', array( $this, 'include_front_side' ), 100 );
+
 		add_filter( 'tutor_builder_screen', __CLASS__ . '::filter_builder_screen', 100 );
 		add_action( 'tutor_action_update_course_bundle', __CLASS__ . '::update_course_bundle', 100 );
+		add_filter( 'get_edit_post_link', __CLASS__ . '::update_admin_bar_url', 100, 3 );
+	}
+
+	/**
+	 * Update admin bar edit bundle post link for frontend pages.
+	 *
+	 * @since 3.2.0
+	 *
+	 * @param string $link the edit post link.
+	 * @param int    $post_id the post id.
+	 * @param string $context the link context.
+	 *
+	 * @return string
+	 */
+	public static function update_admin_bar_url( $link, $post_id, $context ) {
+
+		if ( ! is_admin() && CourseBundle::POST_TYPE === get_post_type( $post_id ) && ! Utils::is_bundle_editor() ) {
+			$link = Utils::construct_page_url( self::ACTION_TYPE_EDIT, $post_id );
+		}
+
+		return $link;
 	}
 
 	/**
@@ -56,7 +96,12 @@ class BundleBuilder {
 	 * @return string
 	 */
 	public static function get_edit_link( $bundle_id ) {
-		return tutor_utils()->tutor_dashboard_url( self::QUERY_PARAM . '?bundle-id=' . $bundle_id );
+		try {
+			return Utils::construct_page_url( 'edit', $bundle_id );
+		} catch ( \Throwable $th ) {
+			tutor_log( $th );
+			return '';
+		}
 	}
 
 	/**
@@ -69,8 +114,22 @@ class BundleBuilder {
 	 * @return void
 	 */
 	public static function add_admin_toolbar( WP_Admin_Bar $admin_bar ) {
+
+		if ( ! Utils::is_bundle_editor() ) {
+			if ( $admin_bar->get_node( 'new-course-bundle' ) ) {
+				$args                = $admin_bar->get_node( 'new-course-bundle' );
+				$args->href          = '#';
+				$args->meta['class'] = 'tutor-add-new-course-bundle';
+				$admin_bar->add_node( $args );
+			}
+		}
+
+		if ( Utils::is_bundle_editor() ) {
+			$admin_bar->remove_node( 'new-course-bundle' );
+		}
+
 		// Return if not admin side.
-		if ( ! is_admin() ) {
+		if ( ! is_admin() || ! Utils::is_bundle_editor() ) {
 			return;
 		}
 
@@ -80,7 +139,7 @@ class BundleBuilder {
 
 		$editor_link  = apply_filters(
 			'tutor_frontend_builder_link',
-			self::get_edit_link( $id )
+			Utils::construct_front_url( self::ACTION_TYPE_EDIT, $id )
 		);
 		$editor_title = apply_filters( 'tutor_frontend_builder_title', __( 'Edit with Frontend Builder', 'tutor-pro' ) );
 
@@ -96,7 +155,18 @@ class BundleBuilder {
 					),
 				)
 			);
+		} elseif ( tutor()->course_post_type === $post_type ) {
+
+			$url = tutor_utils()->course_edit_link( $id );
+			wp_redirect( $url );
+			exit;
+
+		} else {
+			$url = get_edit_post_link( $id ) ?? get_site_url();
+			wp_redirect( $url );
+			exit;
 		}
+
 	}
 
 	/**
@@ -108,14 +178,18 @@ class BundleBuilder {
 	 *
 	 * @return string
 	 */
-	public static function include_frontend_builder( $template ) {
+	public function include_front_side( $template ) {
 		$bundle_id      = Utils::get_bundle_id();
 		$dashboard_page = get_query_var( 'tutor_dashboard_page' );
 
-		$is_bundle_create_page = 'create-bundle' === $dashboard_page;
+		$is_bundle_create_page = self::QUERY_PARAM === $dashboard_page;
 
-		if ( CourseBundle::POST_TYPE === get_post_type( $bundle_id ) && $is_bundle_create_page ) {
-			$template = Utils::template_path( 'dashboard/frontend-bundle-builder.php' );
+		if ( CourseBundle::POST_TYPE === get_post_type( $bundle_id ) && $is_bundle_create_page && is_user_logged_in() ) {
+			$can_edit_bundle = tutor_utils()->can_user_edit_course( get_current_user_id(), $bundle_id );
+
+			if ( $can_edit_bundle ) {
+				$template = Utils::view_path( 'bundle-builder-init.php' );
+			}
 		}
 		return $template;
 	}

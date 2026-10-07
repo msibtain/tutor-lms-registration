@@ -8,7 +8,6 @@
  * @since 3.0.0
  */
 
-
 namespace TutorPro\H5P;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,7 +39,7 @@ class AddonRegister {
 	 */
 	public function addon_config( $config ) {
 		$new_config = array(
-			'name'           => __( 'H5P Integration', 'tutor-pro' ),
+			'name'           => __( 'H5P', 'tutor-pro' ),
 			'description'    => __( 'Integrate H5P to add interactivity and engagement to your courses.', 'tutor-pro' ),
 			'depend_plugins' => array( 'h5p/h5p.php' => 'H5P' ),
 		);

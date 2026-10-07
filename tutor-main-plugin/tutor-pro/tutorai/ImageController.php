@@ -12,11 +12,12 @@ namespace TutorPro\TutorAI;
 
 use Exception;
 use RuntimeException;
+use Throwable;
 use Tutor\Helpers\HttpHelper;
 use TUTOR\Input;
-use Tutor\Traits\JsonResponse;
 use TutorPro\OpenAI\Constants\Models;
 use TutorPro\OpenAI\Constants\Sizes;
+use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -28,14 +29,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 3.0.0
  */
-class ImageController {
-
-	/**
-	 * Use the JsonResponse trait for sending HTTP Response.
-	 *
-	 * @since 3.0.0
-	 */
-	use JsonResponse;
+class ImageController extends TutorAIBaseController {
 
 	/**
 	 * Constructor method for generating AI Images.
@@ -108,10 +102,12 @@ class ImageController {
 	 *
 	 * @since 3.0.0
 	 *
+	 * @throws Exception If error occur.
+	 *
 	 * @return void
 	 */
 	public function generate_image() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$prompt = Input::post( 'prompt' );
 		$style  = Input::post( 'style' );
@@ -126,22 +122,191 @@ class ImageController {
 
 		$prompt = self::generate_prompt( $prompt, $style );
 
-		$input = array(
-			'model'           => Models::DALL_E_3,
-			'prompt'          => $prompt,
-			'n'               => 1,
-			'size'            => Sizes::LANDSCAPE,
-			'response_format' => 'b64_json',
-		);
+		// 1. If WordPress AI Connectors is supported, strictly use WP AI Connectors.
+		if ( Helper::is_wp_ai_supported() ) {
+			if ( Helper::has_image_generation_support() && function_exists( 'wp_ai_client_prompt' ) ) {
+				try {
+					// Image generation (e.g. DALL·E 3) can take 45–90s.
+					// Extend PHP execution time and set a 120s HTTP timeout
+					// so the request is not killed by the 30s default.
+					@set_time_limit( 180 );
+					$request_options = new RequestOptions();
+					$request_options->setTimeout( 120.0 );
+					$builder = wp_ai_client_prompt( $prompt );
+					$image   = $builder->usingRequestOptions( $request_options )->generate_image();
+					if ( is_wp_error( $image ) ) {
+						throw new Exception( $image->get_error_message() );
+					}
+					if ( ! empty( $image ) ) {
+						$b64 = '';
+						$url = '';
+						if ( is_object( $image ) ) {
+							if ( method_exists( $image, 'getDataUri' ) && $image->getDataUri() ) {
+								$b64 = $image->getDataUri();
+							} elseif ( method_exists( $image, 'getBase64Data' ) && $image->getBase64Data() ) {
+								$mime = method_exists( $image, 'getMimeType' ) ? $image->getMimeType() : 'image/png';
+								$b64  = 'data:' . $mime . ';base64,' . $image->getBase64Data();
+							}
+							if ( method_exists( $image, 'getUrl' ) && $image->getUrl() ) {
+								$url = $image->getUrl();
+							}
+						} elseif ( is_string( $image ) ) {
+							if ( preg_match( '/^https?:\/\//i', $image ) ) {
+								$url = $image;
+							} elseif ( 0 === strpos( $image, 'data:' ) ) {
+								$b64 = $image;
+							} else {
+								$b64 = 'data:image/png;base64,' . $image;
+							}
+						}
 
-		try {
-			$client   = Helper::get_openai_client();
-			$response = $client->images()->create( $input );
-			$response = Helper::check_openai_response( $response );
-			$this->json_response( __( 'Image created', 'tutor-pro' ), $response );
-		} catch ( Exception $error ) {
-			$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
+						// If we have a remote URL but no data URI, download and convert to data URI.
+						if ( empty( $b64 ) && ! empty( $url ) ) {
+							$remote_img = wp_remote_get( $url );
+							if ( ! is_wp_error( $remote_img ) ) {
+								$body = wp_remote_retrieve_body( $remote_img );
+								$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+								if ( ! empty( $body ) ) {
+									$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+								}
+							}
+						}
+
+						// Ensure b64 has data URI format so browser <img> and upload_base64_image can process it.
+						if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+							$b64 = 'data:image/png;base64,' . $b64;
+						}
+
+						$response = (object) array(
+							'created' => time(),
+							'data'    => array(
+								(object) array(
+									'b64_json' => $b64,
+									'url'      => $url,
+								),
+							),
+						);
+						$this->json_response( __( 'Image created', 'tutor-pro' ), $response );
+						return;
+					}
+				} catch ( Throwable $error ) {
+					$error_msg = $error->getMessage();
+					if ( false !== stripos( $error_msg, 'No models found' ) ) {
+						$error_msg = __( 'The configured AI connector does not support image generation. Please configure an image-capable connector in WordPress Settings > Connectors.', 'tutor-pro' );
+					}
+					$this->json_response( $error_msg, null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
+					return;
+				}
+			}
+
+			if ( ! Helper::has_ai_connector() ) {
+				$this->json_response(
+					__( 'No AI connector is configured in WordPress. Please configure an AI connector in WordPress Settings > Connectors.', 'tutor-pro' ),
+					null,
+					HttpHelper::STATUS_BAD_REQUEST
+				);
+				return;
+			}
+
+			$this->json_response(
+				__( 'The configured AI connector does not support image generation. Please configure an image-capable connector in WordPress Settings > Connectors.', 'tutor-pro' ),
+				null,
+				HttpHelper::STATUS_BAD_REQUEST
+			);
+			return;
 		}
+
+		// 2. Fall back to legacy OpenAI key (only for WP < 7.0).
+		$chatgpt_api_key = tutor_utils()->get_option( 'chatgpt_api_key' );
+		if ( ! empty( $chatgpt_api_key ) ) {
+			$input = array(
+				'model'  => Models::GPT_IMAGE_2_5_FLARE,
+				'prompt' => $prompt,
+				'n'      => 1,
+				'size'   => Sizes::LANDSCAPE,
+			);
+
+			try {
+				$client   = Helper::get_openai_client();
+				$response = $client->images()->create( $input );
+				$response = Helper::check_openai_response( $response );
+
+				// Ensure legacy OpenAI b64_json and url are synced and in data URI format.
+				if ( is_object( $response ) && ! empty( $response->data ) && is_array( $response->data ) ) {
+					foreach ( $response->data as &$item ) {
+						$b64 = is_object( $item ) && ! empty( $item->b64_json ) ? (string) $item->b64_json : '';
+						$url = is_object( $item ) && ! empty( $item->url ) ? (string) $item->url : '';
+
+						if ( 'data:image/png;base64,' === $b64 ) {
+							$b64 = '';
+						}
+
+						if ( empty( $b64 ) && ! empty( $url ) && preg_match( '/^https?:\/\//i', $url ) ) {
+							$remote_img = wp_remote_get( $url, array( 'timeout' => 60 ) );
+							if ( ! is_wp_error( $remote_img ) ) {
+								$body = wp_remote_retrieve_body( $remote_img );
+								$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+								if ( ! empty( $body ) ) {
+									$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+								}
+							}
+						}
+
+						if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+							$b64 = 'data:image/png;base64,' . $b64;
+						}
+
+						if ( is_object( $item ) ) {
+							$item->b64_json = $b64;
+							$item->url      = ! empty( $url ) ? $url : $b64;
+						}
+					}
+					unset( $item );
+				} elseif ( is_array( $response ) && ! empty( $response['data'] ) && is_array( $response['data'] ) ) {
+					foreach ( $response['data'] as &$item ) {
+						$b64 = is_array( $item ) && ! empty( $item['b64_json'] ) ? (string) $item['b64_json'] : '';
+						$url = is_array( $item ) && ! empty( $item['url'] ) ? (string) $item['url'] : '';
+
+						if ( 'data:image/png;base64,' === $b64 ) {
+							$b64 = '';
+						}
+
+						if ( empty( $b64 ) && ! empty( $url ) && preg_match( '/^https?:\/\//i', $url ) ) {
+							$remote_img = wp_remote_get( $url, array( 'timeout' => 60 ) );
+							if ( ! is_wp_error( $remote_img ) ) {
+								$body = wp_remote_retrieve_body( $remote_img );
+								$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+								if ( ! empty( $body ) ) {
+									$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+								}
+							}
+						}
+
+						if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+							$b64 = 'data:image/png;base64,' . $b64;
+						}
+
+						if ( is_array( $item ) ) {
+							$item['b64_json'] = $b64;
+							$item['url']      = ! empty( $url ) ? $url : $b64;
+						}
+					}
+					unset( $item );
+				}
+
+				$this->json_response( __( 'Image created', 'tutor-pro' ), $response );
+				return;
+			} catch ( Throwable $error ) {
+				$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
+				return;
+			}
+		}
+
+		$this->json_response(
+			__( 'No OpenAI API key found. Please add the API key in Tutor Settings > Advanced.', 'tutor-pro' ),
+			null,
+			HttpHelper::STATUS_BAD_REQUEST
+		);
 	}
 
 	/**
@@ -152,27 +317,89 @@ class ImageController {
 	 * @return void
 	 */
 	public function magic_fill_image() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$prompt         = Input::post( 'prompt' );
 		$image          = Input::post( 'image' );
 		$revised_prompt = 'Fill the image and replace the selected area by {prompt}';
 
 		$input = array(
-			'model'           => Models::DALL_E_2,
-			'image'           => $image,
-			'prompt'          => str_replace( '{prompt}', $prompt, $revised_prompt ),
-			'n'               => 1,
-			'size'            => Sizes::REGULAR,
-			'response_format' => 'b64_json',
+			'model'  => Models::DALL_E_2,
+			'image'  => $image,
+			'prompt' => str_replace( '{prompt}', $prompt, $revised_prompt ),
+			'n'      => 1,
+			'size'   => Sizes::REGULAR,
 		);
 
 		try {
 			$client   = Helper::get_openai_client();
 			$response = $client->edits()->create( $input );
 			$response = Helper::check_openai_response( $response );
+
+			if ( is_object( $response ) && ! empty( $response->data ) && is_array( $response->data ) ) {
+				foreach ( $response->data as &$item ) {
+					$b64 = is_object( $item ) && ! empty( $item->b64_json ) ? (string) $item->b64_json : '';
+					$url = is_object( $item ) && ! empty( $item->url ) ? (string) $item->url : '';
+
+					if ( 'data:image/png;base64,' === $b64 ) {
+						$b64 = '';
+					}
+
+					if ( empty( $b64 ) && ! empty( $url ) && preg_match( '/^https?:\/\//i', $url ) ) {
+						$remote_img = wp_remote_get( $url, array( 'timeout' => 60 ) );
+						if ( ! is_wp_error( $remote_img ) ) {
+							$body = wp_remote_retrieve_body( $remote_img );
+							$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+							if ( ! empty( $body ) ) {
+								$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+							}
+						}
+					}
+
+					if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+						$b64 = 'data:image/png;base64,' . $b64;
+					}
+
+					if ( is_object( $item ) ) {
+						$item->b64_json = $b64;
+						$item->url      = ! empty( $url ) ? $url : $b64;
+					}
+				}
+				unset( $item );
+			} elseif ( is_array( $response ) && ! empty( $response['data'] ) && is_array( $response['data'] ) ) {
+				foreach ( $response['data'] as &$item ) {
+					$b64 = is_array( $item ) && ! empty( $item['b64_json'] ) ? (string) $item['b64_json'] : '';
+					$url = is_array( $item ) && ! empty( $item['url'] ) ? (string) $item['url'] : '';
+
+					if ( 'data:image/png;base64,' === $b64 ) {
+						$b64 = '';
+					}
+
+					if ( empty( $b64 ) && ! empty( $url ) && preg_match( '/^https?:\/\//i', $url ) ) {
+						$remote_img = wp_remote_get( $url, array( 'timeout' => 60 ) );
+						if ( ! is_wp_error( $remote_img ) ) {
+							$body = wp_remote_retrieve_body( $remote_img );
+							$mime = wp_remote_retrieve_header( $remote_img, 'content-type' ) ?: 'image/png';
+							if ( ! empty( $body ) ) {
+								$b64 = 'data:' . $mime . ';base64,' . base64_encode( $body );
+							}
+						}
+					}
+
+					if ( ! empty( $b64 ) && 0 !== strpos( $b64, 'data:' ) && 0 !== strpos( $b64, 'http' ) ) {
+						$b64 = 'data:image/png;base64,' . $b64;
+					}
+
+					if ( is_array( $item ) ) {
+						$item['b64_json'] = $b64;
+						$item['url']      = ! empty( $url ) ? $url : $b64;
+					}
+				}
+				unset( $item );
+			}
+
 			$this->json_response( __( 'Mask applied successfully.', 'tutor-pro' ), $response );
-		} catch ( Exception $error ) {
+		} catch ( Throwable $error ) {
 			$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
 		}
 	}
@@ -187,7 +414,7 @@ class ImageController {
 	 * @throws RuntimeException Throws an exception if any error happens while uploading the bits.
 	 */
 	public function use_magic_image() {
-		tutor_utils()->check_nonce();
+		$this->validate_ajax_request();
 
 		$image = Input::post( 'image' );
 
@@ -198,7 +425,7 @@ class ImageController {
 		try {
 			$response = tutor_utils()->upload_base64_image( $image );
 			$this->json_response( __( 'Image stored', 'tutor-pro' ), $response );
-		} catch ( Exception $error ) {
+		} catch ( Throwable $error ) {
 			$this->json_response( $error->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
 		}
 	}

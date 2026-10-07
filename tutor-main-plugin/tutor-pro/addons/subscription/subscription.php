@@ -20,5 +20,3 @@ define( 'TUTOR_SUBSCRIPTION_FILE', __FILE__ );
 define( 'TUTOR_SUBSCRIPTION_DIR', plugin_dir_path( __FILE__ ) );
 
 Subscription::get_instance();
-
-

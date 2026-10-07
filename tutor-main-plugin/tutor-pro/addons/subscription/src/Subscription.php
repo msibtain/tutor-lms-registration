@@ -12,10 +12,15 @@ namespace TutorPro\Subscription;
 
 use TUTOR\Addons;
 use TUTOR\Singleton;
-use TutorPro\Subscription\Controllers\CoursePlanController;
+use TutorPro\Subscription\Controllers\SubscriptionPlanController;
 use TutorPro\Subscription\Controllers\FrontendController;
 use TutorPro\Subscription\Controllers\CronController;
 use TutorPro\Subscription\Controllers\EmailController;
+use TutorPro\Subscription\Controllers\InvoiceController;
+use TutorPro\Subscription\Controllers\ManualSubscriptionController;
+use TutorPro\Subscription\Controllers\MembershipController;
+use TutorPro\Subscription\Controllers\PlanCheckoutController;
+use TutorPro\Subscription\Controllers\ReportController;
 use TutorPro\Subscription\Controllers\SubscriptionController;
 use TutorPro\Subscription\Controllers\SubscriptionListController;
 
@@ -52,11 +57,18 @@ final class Subscription extends Singleton {
 		new Assets();
 		new Menu();
 		new Settings();
-		new CoursePlanController();
+		new Shortcode();
+		new HookHandler();
+		new PlanCheckoutController();
+		new SubscriptionPlanController();
+		new MembershipController();
 		new FrontendController();
+		new ManualSubscriptionController();
 		new SubscriptionController();
 		new SubscriptionListController();
 		new CronController();
+		new ReportController();
+		new InvoiceController();
 
 		add_action(
 			'tutor_email_addon_loaded',

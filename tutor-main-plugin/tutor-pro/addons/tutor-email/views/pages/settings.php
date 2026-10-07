@@ -70,7 +70,7 @@ $hotlink_protection = (bool) get_tutor_option( ContentSecurity::HOTLINKING_OPTIO
 	<main class="email-page-container main-content-wrapper">
 		<div class="tutor-row tutor-gx-0">
 
-			<div class="tutor-col-md-6 tutor-border-right">
+			<div class="tutor-col-md-6 <?php echo esc_attr( is_rtl() ? 'tutor-border-left' : 'tutor-border-right' ); ?>">
 				<div class="content-form tutor-pr-md-16 tutor-pr-xl-32 tutor-pt-32">
 					<form method="POST" id="tutor-email-settings-form">
 						<input type="hidden" name="action" value="save_email_settings">
@@ -97,7 +97,7 @@ $hotlink_protection = (bool) get_tutor_option( ContentSecurity::HOTLINKING_OPTIO
 															<?php if ( ! $hotlink_protection ) { ?>
 															<button type="button" class="tutor-btn tutor-btn-primary tutor-btn-sm tutor-thumbnail-upload-button tutor-nowrap-ellipsis">
 																<span class="tutor-icon-image-landscape tutor-mr-8" aria-hidden="true"></span>
-																<span><?php esc_html_e( 'Upload Image', 'tutor' ); ?></span>
+																<span><?php esc_html_e( 'Upload Image', 'tutor-pro' ); ?></span>
 															</button>
 															<?php } else { ?>
 															<input	type="text" 
@@ -169,6 +169,7 @@ $hotlink_protection = (bool) get_tutor_option( ContentSecurity::HOTLINKING_OPTIO
 									<?php
 									foreach ( $email_color_fields as $key => $field_group ) {
 										$color_group_label = implode( ' ', array_map( 'ucwords', explode( '_', $key ) ) );
+										$color_group_label = EmailSettings::get_color_group_labels()[ $key ] ?? $color_group_label;
 										?>
 										<div class="tutor-card tutor-card-sm tutor-mb-20">
 											<div class="tutor-card-header">
@@ -292,7 +293,7 @@ $hotlink_protection = (bool) get_tutor_option( ContentSecurity::HOTLINKING_OPTIO
 							<div class="tutor-dropdown-parent">
 								<button class="tutor-btn tutor-color-secondary" action-tutor-dropdown="toggle">
 									<span class="tutor-icon-paper-plane tutor-mr-8" aria-hidden="true"></span>
-									<span><?php esc_html_e( 'Send a test mail', 'tutor-pro' ); ?></span>
+									<span><?php esc_html_e( 'Send a Test Mail', 'tutor-pro' ); ?></span>
 								</button>
 								<div class="tutor-dropdown" style="width: 350px;" data-tutor-copy-target>
 									<div class="tutor-px-16 tutor-pt-8">

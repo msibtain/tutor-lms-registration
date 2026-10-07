@@ -96,6 +96,8 @@ class Init {
 			$template = Input::get( 'template' );
 			$file     = tutor_get_template( 'email.' . $template, true );
 			if ( file_exists( $file ) ) {
+				status_header( 200 );
+
 				ob_start();
 				include $file;
 				$footer_text = '<div class="tutor-email-footer-content" data-source="email_footer_text">' . json_decode( tutor_utils()->get_option( 'email_footer_text' ) ) . '</div>';
@@ -225,6 +227,7 @@ class Init {
 				'template' => $mail['template'],
 				'tooltip'  => $tooltip,
 				'default'  => isset( $mail['default'] ) ? esc_attr( $mail['default'] ) : esc_attr( 'off' ),
+				'editable' => $mail['editable'] ?? true,
 				'buttons'  => array(
 					'edit' => array(
 						'type' => 'anchor',
@@ -313,6 +316,12 @@ class Init {
 					'block_type'    => 'custom',
 					'placement'     => 'before',
 					'template_path' => TUTOR_EMAIL()->path . 'views/email-settings-options.php',
+				),
+				array(
+					'label'      => __( 'Email to All', 'tutor-pro' ),
+					'slug'       => 'email_to_all',
+					'block_type' => 'uniform',
+					'fields'     => $this->get_recipient_array( 'email_to_all' ),
 				),
 				array(
 					'label'      => __( 'Email to Students', 'tutor-pro' ),

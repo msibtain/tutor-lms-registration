@@ -29,7 +29,6 @@ class Enqueue {
 	public function __construct() {
 		add_action( 'wp_enqueue_scripts', __CLASS__ . '::enqueue_facebook_lib', 1 );
 		add_action( 'wp_enqueue_scripts', __CLASS__ . '::load_frontend_scripts' );
-
 	}
 
 
@@ -56,6 +55,7 @@ class Enqueue {
 		);
 
 		// Google authentication library.
+		// ref: https://accounts.google.com/gsi/client.
 		if ( tutor_utils()->get_option( 'enable_google_login' ) ) {
 			wp_enqueue_script(
 				'tutor-pro-google-auth',

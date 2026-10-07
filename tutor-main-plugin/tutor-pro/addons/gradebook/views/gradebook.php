@@ -1,11 +1,11 @@
 <?php
-
 /**
  * Grade Book
  *
  * @since v.1.4.2
- * @author themeum
- * @url https://themeum.com
+ * @author Themeum <support@themeum.com>
+ * @package TutorPro\GradeBook\Views
+ * @link https://themeum.com
  */
 
 $gradebooks = tutor_utils()->get_gradebooks();
@@ -19,10 +19,10 @@ if ( ! tutor_utils()->count( $gradebooks ) ) {
 	return;
 }
 
-$grades           = get_generated_gradebook( 'all', $course_id );
-$final_grade      = get_generated_gradebook( 'final', $course_id );
-$assignment_grade = get_assignment_gradebook_by_course( $course_id );
-$quiz_grade       = get_quiz_gradebook_by_course( $course_id );
+$grades           = tutor_get_generated_gradebook( 'all', $course_id );
+$final_grade      = tutor_get_generated_gradebook( 'final', $course_id );
+$assignment_grade = tutor_get_assignment_gradebook_by_course( $course_id );
+$quiz_grade       = tutor_get_quiz_gradebook_by_course( $course_id );
 $final_stat       = tutor_generate_grade_html( $final_grade, null );
 
 $icon_mapping = array(
@@ -46,7 +46,7 @@ if ( ! $quiz_grade || ! tutor_utils()->count( $grades ) ) {
 
 			<div class="tutor-ml-20">
 				<div class="tutor-fs-6 tutor-color-muted tutor=mb-8"><?php esc_html_e( 'Final Grade', 'tutor-pro' ); ?></div>
-				<div class="tutor-fs-5"><strong><?php echo esc_html( $final_stat['gradepoint_only'] ?? '' ); ?></strong> <?php esc_html_e( 'out of', 'tutor-pro' ); ?> <strong><?php echo isset( $final_stat['gradescale'] ) ? esc_html( $final_stat['gradescale'] ) : ''; ?></strong></div>
+				<div class="tutor-fs-5"><strong><?php echo esc_html( $final_stat['gradepoint'] ?? '' ); ?></strong></div>
 			</div>
 		</div>
 	</div>
@@ -71,17 +71,17 @@ if ( ! $quiz_grade || ! tutor_utils()->count( $grades ) ) {
 				<?php $stat = tutor_generate_grade_html( $grade, null ); ?>
 				<div class="tutor-gradebook-grade tutor-card tutor-p-12<?php echo ( $key > 0 ) ? ' tutor-mt-12' : ''; ?>">
 					<div class="tutor-row tutor-align-center">
-						<div class="tutor-col-lg-8 tutor-mb-12 tutor-mb-lg-0">
+						<div class="tutor-col-4">
 							<span class="tutor-fs-6 tutor-fw-medium tutor-color-black">
 								<?php
-									$for        = strtolower( $grade->result_for );
-									$content_id = 'quiz' === $for ? $grade->quiz_id : $grade->assignment_id;
-									$permalink  = get_permalink( $content_id );
-									$title      = get_the_title( $content_id );
+									$for         = strtolower( $grade->result_for );
+									$content_id  = 'quiz' === $for ? $grade->quiz_id : $grade->assignment_id;
+									$permalink   = get_permalink( $content_id );
+									$grade_title = get_the_title( $content_id );
 
 									echo '<a class="tutor-color-secondary" href="' . esc_url( $permalink ) . '" target="_blank">' .
 											( isset( $icon_mapping[ $for ] ) ? '<i class="' . esc_attr( $icon_mapping[ $for ] ) . ' tutor-color-muted tutor-mr-8"></i>' : '' ) .
-											esc_html( get_the_title( $content_id ) )
+											esc_html( $grade_title )
 										. '</a>';
 								?>
 							</span>
@@ -90,7 +90,7 @@ if ( ! $quiz_grade || ! tutor_utils()->count( $grades ) ) {
 						<div class="tutor-col">
 							<?php if ( ! is_null( $stat ) ) : ?>
 							<span class="tutor-fs-7 tutor-fw-medium tutor-color-secondary">
-								<span><?php echo esc_attr( $stat['gradepoint_only'] ); ?></span> <?php esc_html_e( 'out of', 'tutor-pro' ); ?> <?php echo esc_html($stat['gradescale']); ?>
+								<span><?php echo esc_attr( $stat['gradepoint'] ?? '' ); ?></span>
 							</span>
 							<?php endif; ?>
 						</div>

@@ -10,6 +10,7 @@
  * @package TutorLMS/Templates
  * @version 1.7.1
  */
+use Tutor\Helpers\DateTimeHelper;
 
 global $post;
 $currentPost  = $post;
@@ -63,7 +64,9 @@ $course_id         = tutor_utils()->get_course_id_by( 'lesson', $course_content_
 						<div>
 							<div>
 								<span><?php esc_html_e( 'Meeting Date', 'tutor-pro' ); ?>:</span>
-								<p><?php echo esc_html( $zoom_meeting->start_date ); ?></p>
+								<p title="<?php echo esc_attr( $zoom_meeting->timezone ); ?>">
+									<span class="tutor-utc-date-time"><?php echo esc_html( DateTimeHelper::create( $zoom_meeting->start_date, $zoom_meeting->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?></span>
+								</p>
 							</div>
 							<div>
 								<span><?php esc_html_e( 'Host Email', 'tutor-pro' ); ?>:</span>
@@ -89,7 +92,9 @@ $course_id         = tutor_utils()->get_course_id_by( 'lesson', $course_content_
 					<div class="meeting-details tutor-mt-32">
 						<div>
 							<span><?php esc_html_e( 'Meeting Date', 'tutor-pro' ); ?></span>
-							<p><?php echo esc_html( $zoom_meeting->start_date ); ?></p>
+							<p title="<?php echo esc_attr( $zoom_meeting->timezone ); ?>">
+								<span class="tutor-utc-date-time"><?php echo esc_html( DateTimeHelper::create( $zoom_meeting->start_date, $zoom_meeting->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?></span>
+							</p>
 						</div>
 						<?php if ( isset( $zoom_meeting->data['duration'] ) ) : ?>
 						<div>

@@ -14,7 +14,7 @@
 
 <head>
 	<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-	<?php require TUTOR_EMAIL()->path . 'views/email_styles.php'; ?>
+	<?php require TUTOR()->path . 'templates/email/email_styles.php'; ?>
 </head>
 
 <body>
@@ -29,7 +29,7 @@
 				<table class="tutor-email-datatable">
 					<tr>
 						<td class="label"><?php esc_html_e( 'Withdraw Amount:', 'tutor-pro' ); ?></td>
-						<td><strong>{withdraw_amount} <?php esc_html_e( 'USD', 'tutor-pro' ); ?></strong></td>
+						<td><strong>{withdraw_amount}</strong></td>
 					</tr>
 				</table>
 

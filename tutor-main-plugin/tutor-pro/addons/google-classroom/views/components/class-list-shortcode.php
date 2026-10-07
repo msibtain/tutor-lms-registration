@@ -1,5 +1,17 @@
 <?php
+/**
+ * Google Classroom class list shortcode template.
+ *
+ * @since 2.5.0
+ *
+ * @package TutorPro\GoogleClassroom\Views\Components
+ */
+
+defined( 'ABSPATH' ) || exit;
+
 use TUTOR\Input;
+use Tutor\Models\EnrollmentModel;
+
 ?>
 <div class="tutor-wrap tutor-container tutor-gc-courses">
 <?php
@@ -42,10 +54,10 @@ if ( count( $google_classes ) ) :
 								</div>
 							</div>
 
-							<?php if ( $is_class_restricted && ! tutor_utils()->is_enrolled( $class->ID, get_current_user_id() ) ) : ?>
+							<?php if ( $is_class_restricted && ! EnrollmentModel::is_enrolled( $class->ID, get_current_user_id() ) ) : ?>
 								<div class='tutor-alert tutor-primary tutor-mt-auto'>
 									<div class='tutor-alert-text tutor-d-flex tutor-align-start'>
-										<span class='tutor-alert-icon tutor-fs-4 tutor-icon-circle-info tutor-mr-12' area-hidden="true"></span>
+										<span class='tutor-alert-icon tutor-fs-4 tutor-icon-circle-info tutor-mr-12' aria-hidden="true"></span>
 										<span><?php esc_html_e( 'Only logged in students in a specific Classroom can join.', 'tutor-pro' ); ?></span>
 									</div>
 								</div>
@@ -56,7 +68,7 @@ if ( count( $google_classes ) ) :
 										<span><?php echo esc_html( $class->remote_class->enrollmentCode ); ?></span>
 									</div>
 									<div>
-										<span class="tutor-iconic-btn tutor-copy-text tutor-mr-n8" data-text="<?php echo esc_attr( $class->remote_class->enrollmentCode ); ?>" role="button"><span class="tutor-icon-copy" area-hidden="true"></span></span>
+										<span class="tutor-iconic-btn tutor-copy-text tutor-mr-n8" data-text="<?php echo esc_attr( $class->remote_class->enrollmentCode ); ?>" role="button"><span class="tutor-icon-copy" aria-hidden="true"></span></span>
 									</div>
 								</div>
 							<?php endif; ?>
@@ -73,11 +85,11 @@ if ( count( $google_classes ) ) :
 		<div class="tutor-pagination-wrap">
 			<?php if ( $page > 1 ) : ?>
 			<a class="next previous page-numbers" href="?class_page=<?php echo esc_attr( $page - 1 ); ?>">
-				<span class="tutor-icon-angle-double-left tutor-mr-8" area-hidden="true"></span> <?php esc_html_e( 'Previous', 'tutor-pro' ); ?>
+				<span class="tutor-icon-angle-double-left tutor-mr-8" aria-hidden="true"></span> <?php esc_html_e( 'Previous', 'tutor-pro' ); ?>
 			</a>
 			<?php endif; ?>
 			<a class="previous previous page-numbers" href="?class_page=<?php echo esc_attr( $page + 1 ); ?>">
-			<?php esc_html_e( 'Next', 'tutor-pro' ); ?> <span class="tutor-icon-angle-double-right tutor-ml-8" area-hidden="true"></span>
+			<?php esc_html_e( 'Next', 'tutor-pro' ); ?> <span class="tutor-icon-angle-double-right tutor-ml-8" aria-hidden="true"></span>
 			</a>
 		</div>
 	   <?php else : ?>

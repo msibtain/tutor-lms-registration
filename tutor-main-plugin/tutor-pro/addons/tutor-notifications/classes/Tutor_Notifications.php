@@ -13,6 +13,9 @@ namespace TUTOR_NOTIFICATIONS;
 
 defined( 'ABSPATH' ) || exit;
 
+use Tutor\Components\InputField;
+use Tutor\Components\Constants\InputType;
+
 /**
  * Tutor Notifications class
  */
@@ -44,46 +47,12 @@ class Tutor_Notifications {
 	 */
 	public function load_scrips() {
 		// Service worker should always be registered regardless of login state.
-		wp_enqueue_script( 'tutor-pn-registrar', TUTOR_NOTIFICATIONS()->url . 'assets/js/registrar.js', array( 'wp-i18n' ), TUTOR_PRO_VERSION, true );
-		wp_enqueue_style( 'tutor-pn-registrar-css', TUTOR_NOTIFICATIONS()->url . 'assets/css/permission.css', array(), TUTOR_PRO_VERSION );
+		wp_enqueue_script( 'tutor-pn-register', TUTOR_NOTIFICATIONS()->url . 'assets/js/register.js', array( 'wp-i18n' ), TUTOR_PRO_VERSION, true );
+		wp_enqueue_style( 'tutor-pn-permission-css', TUTOR_NOTIFICATIONS()->url . 'assets/css/permission.css', array(), TUTOR_PRO_VERSION );
 
-		$dashboard_page_id = tutor_utils()->get_option( 'tutor_dashboard_page_id' );
-		if ( is_page( (int) $dashboard_page_id ) ) {
+		if ( is_user_logged_in() && tutor_utils()->is_dashboard_page() ) {
 			wp_enqueue_style( 'tutor-notifications', TUTOR_NOTIFICATIONS()->url . 'assets/css/tutor-notifications.css', array(), TUTOR_PRO_VERSION );
-			wp_enqueue_script( 'tutor-notifications', TUTOR_NOTIFICATIONS()->url . 'assets/js/tutor-notifications.js', array( 'wp-i18n', 'wp-element' ), TUTOR_PRO_VERSION, true );
-
-			wp_localize_script(
-				'tutor-notifications',
-				'notifications_data',
-				array(
-					'ajax_url'                => admin_url( 'admin-ajax.php' ),
-					'notifications'           => $this->utils->get_all_notifications_by_current_user(),
-					'empty_image'             => TUTOR_NOTIFICATIONS()->url . 'assets/images/empty-notification.svg',
-					'notification_title'      => _x( 'Notifications', 'notification-panel', 'tutor-pro' ),
-					'mark_as_read'            => _x( 'Mark as Read', 'notification-panel', 'tutor-pro' ),
-					'mark_as_unread'          => _x( 'Mark as Unread', 'notification-panel', 'tutor-pro' ),
-					'empty_notification'      => _x( 'No Notifications Yet', 'notification-panel', 'tutor-pro' ),
-					'empty_notification_desc' => _x( 'Stay tuned! Information about your activity will show up here.', 'notification-panel', 'tutor-pro' ),
-					'a_few_seconds_ago'       => _x( 'a few seconds ago', 'notification-panel', 'tutor-pro' ),
-					'a_minute_ago'            => _x( 'a minute ago', 'notification-panel', 'tutor-pro' ),
-					'minutes_ago'             => _x( 'minutes ago', 'notification-panel', 'tutor-pro' ),
-					'an_hour_ago'             => _x( 'an hour ago', 'notification-panel', 'tutor-pro' ),
-					'hours_ago'               => _x( 'hours ago', 'notification-panel', 'tutor-pro' ),
-					'months'                  => _x( 'months', 'notification-panel', 'tutor-pro' ),
-					'jan'                     => tutor_utils()->translate_dynamic_text( 'jan' ),
-					'feb'                     => tutor_utils()->translate_dynamic_text( 'feb' ),
-					'mar'                     => tutor_utils()->translate_dynamic_text( 'mar' ),
-					'apr'                     => tutor_utils()->translate_dynamic_text( 'apr' ),
-					'may'                     => tutor_utils()->translate_dynamic_text( 'may' ),
-					'jun'                     => tutor_utils()->translate_dynamic_text( 'jun' ),
-					'jul'                     => tutor_utils()->translate_dynamic_text( 'jul' ),
-					'aug'                     => tutor_utils()->translate_dynamic_text( 'aug' ),
-					'sep'                     => tutor_utils()->translate_dynamic_text( 'sep' ),
-					'oct'                     => tutor_utils()->translate_dynamic_text( 'oct' ),
-					'nov'                     => tutor_utils()->translate_dynamic_text( 'nov' ),
-					'dec'                     => tutor_utils()->translate_dynamic_text( 'dec' ),
-				)
-			);
+			wp_enqueue_script( 'tutor-notifications', TUTOR_NOTIFICATIONS()->url . 'assets/js/tutor-notifications.js', array( 'tutor-core', 'wp-i18n' ), TUTOR_PRO_VERSION, true );
 		}
 	}
 
@@ -104,7 +73,7 @@ class Tutor_Notifications {
 			'icon'     => 'tutor-icon-bell-bold',
 			'blocks'   => array(
 				array(
-					'label'        => __( 'Student Notification' ),
+					'label'        => __( 'Student Notification', 'tutor-pro' ),
 					'tooltip'      => __( 'Notifications for Students', 'tutor-pro' ),
 					'status_label' => __( 'Notification Status', 'tutor-pro' ),
 					'block_type'   => 'notification',
@@ -181,7 +150,7 @@ class Tutor_Notifications {
 					),
 				), // End of Student Notifications.
 				array(
-					'label'        => __( 'Instructor Notification' ),
+					'label'        => __( 'Instructor Notification', 'tutor-pro' ),
 					'tooltip'      => __( 'Notifications for Instructors', 'tutor-pro' ),
 					'status_label' => __( 'Notification Status', 'tutor-pro' ),
 					'block_type'   => 'notification',
@@ -252,17 +221,22 @@ class Tutor_Notifications {
 	 * Load notification template
 	 */
 	public function load_notification_template() {
-		echo '<div id="tutor-notifications-wrapper" class="tutor-mr-24"></div>';
+		tutor_load_template_from_custom_path( tutor_notifications()->path . 'templates/dashboard-notifications.php' );
 	}
 
 	/**
 	 * Add notification checkbox in announcement editor
 	 */
 	public function notification_checkbox_for_announcement() {
-
 		$notify_all_students = tutor_utils()->get_option( 'tutor_notifications_to_students.new_announcement_posted' );
 
-		if ( $notify_all_students ) : ?>
+		if ( ! $notify_all_students ) {
+			return;
+		}
+
+		$is_admin_dashboard = is_admin();
+
+		if ( $is_admin_dashboard ) : ?>
 			<div class="tutor-option-field-row">
 				<div class="tutor-form-check tutor-mb-4">
 					<input id="tutor_announcement-notification-onsite" type="checkbox" class="tutor-form-check-input tutor-form-check-20" name="tutor_notify_all_students" checked="checked"/>
@@ -272,6 +246,14 @@ class Tutor_Notifications {
 				</div>
 			</div>
 			<?php
+		else :
+			InputField::make()
+				->type( InputType::CHECKBOX )
+				->name( 'tutor_notify_all_students' )
+				->label( __( 'Send on-site notification to all students of this course.', 'tutor-pro' ) )
+				->attr( 'x-bind', "register('tutor_notify_all_students')" )
+				->checked()
+				->render();
 		endif;
 	}
 }

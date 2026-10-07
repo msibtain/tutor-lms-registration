@@ -9,6 +9,14 @@
 
 use TutorPro\GoogleMeet\Utilities\Utilities;
 
+$filters = array(
+	'bulk_action'   => false,
+	'bulk_actions'  => false,
+	'filters'       => true,
+	'course_filter' => true,
+	'sort_by'       => false,
+);
+
 ?>
 <div class="tutor-google-meet-meetings tutor-mt-32" id="tutor-google-meet-meta-box-wrapper">
 	<?php
@@ -93,7 +101,7 @@ use TutorPro\GoogleMeet\Utilities\Utilities;
 											<div class="tutor-dropdown-parent">
 												<button class="tutor-btn tutor-btn-outline-primary tutor-btn-md" action-tutor-dropdown="toggle">
 													<span><?php esc_html_e( 'Info', 'tutor-pro' ); ?></span>
-													<span class="tutor-icon-angle-down tutor-fs-7 tutor-ml-4" area-hidden="true"></span>
+													<span class="tutor-icon-angle-down tutor-fs-7 tutor-ml-4" aria-hidden="true"></span>
 												</button>
 
 												<ul class="tutor-dropdown" style="width: 280px;">
@@ -109,12 +117,12 @@ use TutorPro\GoogleMeet\Utilities\Utilities;
 														</div>
 														<div class="tutor-ml-auto">
 															<button class="tutor-iconic-btn" data-tutor-copy-target="tutor-google-meet-link-<?php echo esc_attr( $meeting->ID ); ?>">
-																<span class="tutor-icon-copy-text" area-hidden="true"></span>
+																<span class="tutor-icon-copy-text" aria-hidden="true"></span>
 															</button>
 														</div>
 													</div>
 
-													<div class="tutor-hr" area-hidden="true"></div>
+													<div class="tutor-hr" aria-hidden="true"></div>
 
 													<div class="tutor-px-24 tutor-py-12 tutor-mt-8">
 														<div class="tutor-fs-7 tutor-color-muted"><?php esc_html_e( 'Host Email', 'tutor-pro' ); ?></div>
@@ -126,18 +134,18 @@ use TutorPro\GoogleMeet\Utilities\Utilities;
 											</div>
 											<div class="tutor-dropdown-parent">
 												<button type="button" class="tutor-iconic-btn" action-tutor-dropdown="toggle">
-													<span class="tutor-icon-kebab-menu" area-hidden="true"></span>
+													<span class="tutor-icon-kebab-menu" aria-hidden="true"></span>
 												</button>
 												<ul class="tutor-dropdown tutor-dropdown-dark tutor-text-left">
 													<li>
 														<a href="#" class="tutor-dropdown-item" data-tutor-modal-target="tutor-google-meet-modal-<?php echo esc_attr( $meeting->ID ); ?>">
-															<i class="tutor-icon-edit tutor-mr-8" area-hidden="true"></i>
+															<i class="tutor-icon-edit tutor-mr-8" aria-hidden="true"></i>
 															<spa><?php esc_html_e( 'Edit', 'tutor-pro' ); ?></span>
 														</a>
 													</li>
 													<li>
 														<a href="#" class="tutor-dropdown-item tutor-google-meet-list-delete" data-event-id="<?php echo esc_attr( $event_details->id ); ?>" data-meeting-post-id="<?php echo esc_attr( $meeting->ID ); ?>" data-item-reference="tutor-google-meet-list-item-<?php echo esc_attr( $meeting->ID ); ?>" data-tutor-modal-target="tutor-common-confirmation-modal">
-															<i class="tutor-icon-trash-can-bold tutor-mr-8 tutor-gm-delete" area-hidden="true"></i>
+															<i class="tutor-icon-trash-can-bold tutor-mr-8 tutor-gm-delete" aria-hidden="true"></i>
 															<span class="tutor-gm-delete"><?php esc_html_e( 'Delete', 'tutor-pro' ); ?></span>
 														</a>
 													</li>
@@ -161,28 +169,28 @@ use TutorPro\GoogleMeet\Utilities\Utilities;
 					<?php endif; ?>
 				</tbody>
 			</table>
-		</div>
-		<!-- pagination  -->
-		<div class="tutor-admin-page-pagination-wrapper tutor-mt-32">
-			<?php
-			/**
-			 * Prepare pagination data & load template
-			 */
-			if ( $meetings['total_found'] > $posts_per_page ) {
-				$pagination_data = array(
-					'total_items' => $meetings['total_found'],
-					'per_page'    => $posts_per_page,
-					'paged'       => $current_page,
-				);
+			<!-- pagination  -->
+			<div class="tutor-admin-page-pagination-wrapper tutor-mt-32">
+				<?php
+				/**
+				 * Prepare pagination data & load template
+				 */
+				if ( $meetings['total_found'] > $posts_per_page ) {
+					$pagination_data = array(
+						'total_items' => $meetings['total_found'],
+						'per_page'    => $posts_per_page,
+						'paged'       => $current_page,
+					);
 
-				tutor_load_template_from_custom_path(
-					tutor()->path . 'templates/dashboard/elements/pagination.php',
-					$pagination_data
-				);
-			}
-			?>
-		</div>    
-		<!-- pagination end -->
+					tutor_load_template_from_custom_path(
+						tutor()->path . 'templates/dashboard/elements/pagination.php',
+						$pagination_data
+					);
+				}
+				?>
+			</div>    
+			<!-- pagination end -->
+		</div>
 		<?php wp_reset_postdata(); ?>
 	</div>
 </div>

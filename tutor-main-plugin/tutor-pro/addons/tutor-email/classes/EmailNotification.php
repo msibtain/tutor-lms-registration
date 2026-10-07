@@ -15,10 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use TUTOR\Dashboard;
+use Tutor\Helpers\UrlHelper;
 use TUTOR\Input;
 use Tutor\Models\CourseModel;
+use Tutor\Models\QuizModel;
 use TUTOR_CERT\Certificate;
 use TUTOR\User;
+use TutorPro\Models\QuizModel as ProQuizModel;
 
 /**
  * Class EmailNotification
@@ -27,10 +31,12 @@ use TUTOR\User;
  */
 class EmailNotification {
 
-	const INACTIVE_REMINDED_META = 'tutor_inactive_reminded';
-	const TO_STUDENTS            = 'email_to_students';
-	const TO_TEACHERS            = 'email_to_teachers';
-	const TO_ADMIN               = 'email_to_admin';
+	const NOTIFICATION_TYPE          = 'email';
+	const INACTIVE_REMINDED_META     = 'tutor_inactive_reminded';
+	const TO_STUDENTS                = 'email_to_students';
+	const TO_TEACHERS                = 'email_to_teachers';
+	const TO_ADMIN                   = 'email_to_admin';
+	const EMAIL_TEMPLATE_DATA_OPTION = 'email_template_data';
 
 	/**
 	 * Queue table
@@ -56,9 +62,9 @@ class EmailNotification {
 	/**
 	 * Default mail data
 	 *
-	 * @var mixed
+	 * @var array|null
 	 */
-	public $default_mail_data;
+	public $default_mail_data = null;
 
 	/**
 	 * Register hooks
@@ -70,12 +76,63 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function __construct( $register_hooks = true ) {
+		$this->setup_properties();
+
+		// Load i18n-backed mail data after init (or immediately if init already ran).
+		if ( did_action( 'init' ) ) {
+			$this->load_default_mail_data();
+			return;
+		}
+
+		add_action(
+			'init',
+			function () use ( $register_hooks ) {
+				$this->init_email( $register_hooks );
+			}
+		);
+	}
+
+	/**
+	 * Set non-i18n class properties.
+	 *
+	 * @since 4.0.5
+	 *
+	 * @return void
+	 */
+	private function setup_properties() {
 		global $wpdb;
 
-		$this->queue_table       = $wpdb->tutor_email_queue;
-		$this->email_logo        = esc_url( TUTOR_EMAIL()->url . 'assets/images/tutor-logo.png' );
-		$this->email_options     = get_option( 'email_template_data' );
+		$this->queue_table   = $wpdb->tutor_email_queue;
+		$this->email_logo    = esc_url( TUTOR_EMAIL()->url . 'assets/images/tutor-logo.png' );
+		$this->email_options = get_option( self::EMAIL_TEMPLATE_DATA_OPTION );
+	}
+
+	/**
+	 * Load default mail data (uses translations — must run on/after init).
+	 *
+	 * @since 4.0.5
+	 *
+	 * @return void
+	 */
+	private function load_default_mail_data() {
+		if ( null !== $this->default_mail_data ) {
+			return;
+		}
+
 		$this->default_mail_data = ( new EmailData() )->get_recipients();
+	}
+
+	/**
+	 * Init email
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param bool $register_hooks register hooks or not.
+	 *
+	 * @return void
+	 */
+	public function init_email( $register_hooks ) {
+		$this->load_default_mail_data();
 
 		if ( ! $register_hooks ) {
 			return;
@@ -83,6 +140,10 @@ class EmailNotification {
 
 		add_action( 'tutor_quiz/attempt_ended', array( $this, 'quiz_finished_send_email_to_student' ), 10, 1 );
 		add_action( 'tutor_finish_quiz_attempt', array( $this, 'quiz_finished_send_email_to_student' ), 10, 1 );
+		add_action( 'tutor_quiz/attempt/graded', array( $this, 'send_quiz_graded_email_to_student' ), 10, 1 );
+
+		add_action( 'tutor_after_rating_placed', array( $this, 'handle_after_rating_placed' ) );
+		add_action( 'tutor_course_review_approved', array( $this, 'handle_course_review_approved' ) );
 
 		/**
 		 * Lesson, quiz & assignment mail handler
@@ -96,8 +157,8 @@ class EmailNotification {
 		add_action( 'tutor_quiz/attempt_ended', array( $this, 'quiz_finished_send_email_to_instructor' ), 10, 1 );
 		add_action( 'tutor_finish_quiz_attempt', array( $this, 'quiz_finished_send_email_to_instructor' ), 10, 1 );
 
-		add_action( 'tutor_course_complete_after', array( $this, 'course_complete_email_to_student' ), 10, 1 );
-		add_action( 'tutor_course_complete_after', array( $this, 'course_complete_email_to_teacher' ), 10, 1 );
+		add_action( 'tutor_course_complete_after', array( $this, 'course_complete_email_to_student' ), 10, 2 );
+		add_action( 'tutor_course_complete_after', array( $this, 'course_complete_email_to_teacher' ), 10, 2 );
 
 		add_action( 'tutor_after_enrolled', array( $this, 'course_enroll_email_to_teacher' ), 10, 3 );
 		add_action( 'tutor_after_enrolled', array( $this, 'course_enroll_email_to_student' ), 10, 3 );
@@ -140,7 +201,6 @@ class EmailNotification {
 		add_action( 'tutor_announcements/after/save', array( $this, 'tutor_announcements_notify_students' ), 10, 3 );
 
 		add_action( 'tutor_after_asked_question', array( $this, 'tutor_after_asked_question' ), 10, 1 );
-		add_action( 'tutor_quiz/attempt/submitted/feedback', array( $this, 'feedback_submitted_for_quiz_attempt' ), 10, 3 );
 		add_action( 'tutor_course_complete_after', array( $this, 'tutor_course_complete_after' ), 10, 3 );
 
 		/**
@@ -150,6 +210,7 @@ class EmailNotification {
 		 */
 		add_action( 'tutor_after_approved_instructor', array( $this, 'instructor_application_approved' ), 10 );
 		add_action( 'tutor_after_rejected_instructor', array( $this, 'instructor_application_rejected' ), 10 );
+		add_action( 'tutor_after_blocked_instructor', array( $this, 'instructor_application_rejected' ), 10 );
 		add_action( 'tutor_after_approved_withdraw', array( $this, 'withdrawal_request_approved' ), 10 );
 		add_action( 'tutor_after_rejected_withdraw', array( $this, 'withdrawal_request_rejected' ), 10 );
 		add_action( 'tutor_insert_withdraw_after', array( $this, 'withdrawal_request_placed' ), 10 );
@@ -158,11 +219,209 @@ class EmailNotification {
 		add_action( 'tutor-pro/content-drip/new_quiz_published', array( $this, 'new_lqa_published' ), 10 );
 		add_action( 'tutor-pro/content-drip/new_assignment_published', array( $this, 'new_lqa_published' ), 10 );
 
+		add_action( 'init', array( $this, 'register_email_hooks' ) );
+
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_email_scripts' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'load_js_translation' ), 100 );
 
 		// Assign email variables.
 		add_action( 'init', array( $this, 'save_recipient_data' ) );
+
+		add_filter( 'retrieve_password_notification_email', array( $this, 'retrieve_password' ), PHP_INT_MAX, 4 );
+	}
+
+	/**
+	 * Send email to admin and instructor
+	 *
+	 * @since 3.7.0
+	 *
+	 * @param int $comment_id comment id.
+	 *
+	 * @return void
+	 */
+	public function handle_after_rating_placed( int $comment_id ) {
+		$comment = get_comment( $comment_id );
+		if ( empty( $comment_id ) ) {
+			return;
+		}
+
+		$is_enabled_email_to_admin       = tutor_utils()->get_option( 'email_to_admin.a_student_submitted_review' );
+		$is_enabled_email_to_teacher     = tutor_utils()->get_option( 'email_to_teachers.a_student_submitted_review' );
+		$enable_course_review_moderation = tutor_utils()->get_option( 'enable_course_review_moderation' );
+
+		if ( $is_enabled_email_to_admin ) {
+			$this->send_review_email_to_admins( $comment );
+		}
+
+		if ( $is_enabled_email_to_teacher && ! $enable_course_review_moderation ) {
+			$this->send_review_email_to_instructor( $comment );
+		}
+	}
+
+	/**
+	 * Send email to instructor
+	 *
+	 * @since 3.7.0
+	 *
+	 * @param int $comment_id comment id.
+	 *
+	 * @return void
+	 */
+	public function handle_course_review_approved( int $comment_id ) {
+		$comment = get_comment( $comment_id );
+		if ( empty( $comment_id ) ) {
+			return;
+		}
+
+		$is_enabled_email_to_teacher = tutor_utils()->get_option( 'email_to_teachers.a_student_submitted_review' );
+		if ( $is_enabled_email_to_teacher ) {
+			$this->send_review_email_to_instructor( $comment );
+		}
+	}
+
+	/**
+	 * Send email to admin after a student submits review
+	 *
+	 * @since 3.7.0
+	 *
+	 * @param object $comment Comment.
+	 *
+	 * @return void
+	 */
+	public function send_review_email_to_admins( $comment ) {
+		$course      = get_post( $comment->comment_post_ID );
+		$course_name = $course->post_title;
+		$course_url  = get_the_permalink( $course->ID );
+
+		$site_url    = get_bloginfo( 'url' );
+		$site_name   = get_bloginfo( 'name' );
+		$option_data = $this->get_option_data( self::TO_ADMIN, 'a_student_submitted_review' );
+		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$header      = apply_filters( 'tutor_email_header_student_submitted_review', $header );
+
+		// Get student info.
+		$student_details = get_userdata( $comment->user_id );
+		$student_name    = tutor_utils()->display_name( $student_details->ID );
+
+		$subject = __( "You've Got a New Course Review!", 'tutor-pro' );
+
+		$reviews_url = add_query_arg(
+			array(
+				'page'     => 'tutor_report',
+				'sub_page' => 'reviews',
+			),
+			admin_url( 'admin.php' )
+		);
+
+		// Prepare placeholder value.
+		$replacable['{testing_email_notice}'] = '';
+		$replacable['{student_name}']         = $student_name;
+		$replacable['{student_email}']        = $student_details->user_email;
+		$replacable['{submission_date}']      = date_i18n( get_option( 'date_format' ), $comment->comment_date );
+		$replacable['{reviews_url}']          = $reviews_url;
+		$replacable['{course_name}']          = $course_name;
+		$replacable['{course_url}']           = $course_url;
+		$replacable['{site_url}']             = $site_url;
+		$replacable['{site_name}']            = $site_name;
+		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
+		$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
+		$replacable['{before_button}']        = $this->get_replaced_text( $option_data['before_button'], array_keys( $replacable ), array_values( $replacable ) );
+
+		if ( isset( $option_data['footer_text'] ) ) {
+			$replacable['{footer_text}'] = $this->get_replaced_text( $option_data['footer_text'], array_keys( $replacable ), array_values( $replacable ) );
+		}
+
+		if ( isset( $option_data['message'] ) ) {
+			$replacable['{email_message}'] = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
+		}
+
+		if ( isset( $option_data['subject'] ) ) {
+			$subject = $subject;
+		}
+
+		ob_start();
+		$this->tutor_load_email_template( 'to_admin_student_submitted_review' );
+		$email_tpl = apply_filters( 'tutor_email_student_submitted_review', ob_get_clean() );
+
+		$admin_users = get_users( array( 'role__in' => array( 'administrator' ) ) );
+		foreach ( $admin_users as $user ) {
+			$replacable['{user_name}'] = tutor_utils()->display_name( $user->ID );
+			$message                   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
+			$this->send( $user->user_email, $subject, $message, $header );
+		}
+	}
+
+	/**
+	 * Send email to instructor after a student submits review
+	 *
+	 * @since 3.7.0
+	 *
+	 * @param object $comment Comment.
+	 *
+	 * @return void
+	 */
+	public function send_review_email_to_instructor( $comment ) {
+		$course      = get_post( $comment->comment_post_ID );
+		$course_name = $course->post_title;
+		$course_url  = get_the_permalink( $course->ID );
+
+		// Get instructor info.
+		$instructor_data = get_userdata( $course->post_author );
+		$instructor_name = tutor_utils()->display_name( $instructor_data->ID );
+
+		// Ignore email when teachers himself admin because admin email has already been send.
+		if ( user_can( $instructor_data->ID, 'manage_options' ) ) {
+			return;
+		}
+
+		$site_url    = get_bloginfo( 'url' );
+		$site_name   = get_bloginfo( 'name' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'a_student_submitted_review' );
+		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$header      = apply_filters( 'tutor_email_header_student_submitted_review', $header );
+
+		// Get student info.
+		$student_details = get_userdata( $comment->user_id );
+		$student_name    = tutor_utils()->display_name( $student_details->ID );
+
+		$subject = __( "You've Got a New Course Review!", 'tutor-pro' );
+		$to      = $instructor_data->user_email;
+
+		$reviews_url = tutor_utils()->tutor_dashboard_url( 'reviews' );
+
+		// Prepare placeholder value.
+		$replacable['{testing_email_notice}'] = '';
+		$replacable['{student_name}']         = $student_name;
+		$replacable['{student_email}']        = $student_details->user_email;
+		$replacable['{user_name}']            = $instructor_name;
+		$replacable['{submission_date}']      = date_i18n( get_option( 'date_format' ), $comment->comment_date );
+		$replacable['{reviews_url}']          = $reviews_url;
+		$replacable['{course_name}']          = $course_name;
+		$replacable['{course_url}']           = $course_url;
+		$replacable['{site_url}']             = $site_url;
+		$replacable['{site_name}']            = $site_name;
+		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
+		$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
+		$replacable['{before_button}']        = $this->get_replaced_text( $option_data['before_button'], array_keys( $replacable ), array_values( $replacable ) );
+
+		if ( isset( $option_data['footer_text'] ) ) {
+			$replacable['{footer_text}'] = $this->get_replaced_text( $option_data['footer_text'], array_keys( $replacable ), array_values( $replacable ) );
+		}
+
+		if ( isset( $option_data['message'] ) ) {
+			$replacable['{email_message}'] = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
+		}
+
+		if ( isset( $option_data['subject'] ) ) {
+			$subject = $subject;
+		}
+
+		ob_start();
+		$this->tutor_load_email_template( 'to_instructor_student_submitted_review' );
+		$email_tpl = apply_filters( 'tutor_email_student_submitted_review', ob_get_clean() );
+		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
+
+		$this->send( $to, $subject, $message, $header );
 	}
 
 	/**
@@ -173,9 +432,19 @@ class EmailNotification {
 	 * @param string $to_key to key like email_to_students, email_to_teachers, email_to_admin.
 	 * @param string $trigger_key trigger name.
 	 *
+	 * @since 3.2.3
+	 *
+	 * @param int    $recipient the receiver id.
+	 *
 	 * @return array
 	 */
-	public function get_option_data( $to_key, $trigger_key ) {
+	public function get_option_data( $to_key, $trigger_key, $recipient = 0 ) {
+		if ( $recipient ) {
+			$this->email_options = apply_filters( 'tutor_pro_user_email_template_option', $this->email_options, $recipient );
+		} else {
+			$this->email_options = apply_filters( 'tutor_pro_email_template_data_option', $this->email_options );
+		}
+
 		return isset( $this->email_options[ $to_key ][ $trigger_key ] )
 				? $this->email_options[ $to_key ][ $trigger_key ]
 				: $this->default_mail_data[ $to_key ][ $trigger_key ];
@@ -253,13 +522,16 @@ class EmailNotification {
 
 		$students = tutor_utils()->get_students_data_by_course_id( $course_id, 'ID', true );
 		if ( $is_enabled_lesson_mail && 'lesson' === $content_type ) {
-			$this->course_content_mail_to_student( $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
+			$trigger_name = 'new_lesson_published';
+			$this->course_content_mail_to_student( $trigger_name, $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
 		}
 		if ( $is_enabled_quiz_mail && 'tutor_quiz' === $content_type ) {
-			$this->course_content_mail_to_student( $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
+			$trigger_name = 'new_quiz_published';
+			$this->course_content_mail_to_student( $trigger_name, $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
 		}
 		if ( $is_enabled_assignment_mail && 'tutor_assignments' === $content_type ) {
-			$this->course_content_mail_to_student( $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
+			$trigger_name = 'new_assignment_published';
+			$this->course_content_mail_to_student( $trigger_name, $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data );
 		}
 		return;
 	}
@@ -268,8 +540,10 @@ class EmailNotification {
 	 * Course content mail trigger method
 	 * send mail for new created or updated lesson | quiz | assignment
 	 *
-	 * @since v2.0.4
+	 * @since 2.0.4
+	 * @since 3.1.0 param $trigger_name added.
 	 *
+	 * @param string $trigger_name trigger name.
 	 * @param array  $students students.
 	 * @param int    $course_id course id.
 	 * @param int    $course_content_id course content id.
@@ -282,12 +556,17 @@ class EmailNotification {
 	 *
 	 * @return void
 	 */
-	public function course_content_mail_to_student( $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data ): void {
+	public function course_content_mail_to_student( $trigger_name, $students, $course_id, $course_content_id, $subject, $email_heading, $message, $footer_text, $template_name, $option_data ): void {
 
 		$email_heading = str_replace( '{course_name}', get_the_title( $course_id ), $email_heading );
 		$subject       = str_replace( '{course_name}', get_the_title( $course_id ), $subject );
+
 		if ( is_array( $students ) && count( $students ) ) {
 			foreach ( $students as $key => $student ) {
+				$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student->ID );
+				if ( ! $notification_enabled ) {
+					continue;
+				}
 
 				$student_name = tutor_utils()->get_user_name( get_userdata( $student->ID ) );
 				$site_url     = get_bloginfo( 'url' );
@@ -344,10 +623,27 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function save_recipient_data() {
-		$option_data    = get_option( 'email_template_data' );
+		do_action( 'tutor_pro_before_save_email_template_data' );
+		$option_data    = get_option( self::EMAIL_TEMPLATE_DATA_OPTION );
 		$recipient_data = ( new EmailData() )->get_recipients();
 		if ( isset( $option_data ) && empty( $option_data ) ) {
-			update_option( 'email_template_data', $recipient_data );
+			update_option( self::EMAIL_TEMPLATE_DATA_OPTION, $recipient_data, false );
+			return;
+		}
+
+		$saved_quiz_message = isset( $option_data['email_to_students']['quiz_completed']['message'] )
+			? (string) $this->prepare_message( $option_data['email_to_students']['quiz_completed']['message'] )
+			: '';
+		$normalized_message = strtolower( trim( (string) preg_replace( '/\s+/', ' ', wp_strip_all_tags( html_entity_decode( $saved_quiz_message, ENT_QUOTES, 'UTF-8' ) ) ) ) );
+		$legacy_messages    = array(
+			'the grade has been submitted for the quiz {quiz_name} for the course {course_name}.',
+			'your instructor has graded your quiz attempt for the {course_name} course. click below to view your quiz results and instructor feedback.',
+			'your quiz has been graded for the {course_name} course.',
+		);
+
+		if ( in_array( $normalized_message, $legacy_messages, true ) ) {
+			$option_data['email_to_students']['quiz_completed']['message'] = $recipient_data['email_to_students']['quiz_completed']['message'];
+			update_option( self::EMAIL_TEMPLATE_DATA_OPTION, $option_data, false );
 		}
 	}
 
@@ -410,9 +706,10 @@ class EmailNotification {
 		$email_block_content = Input::post( 'email-block-content', null, Input::TYPE_TEXTAREA );
 		$email_before_button = Input::post( 'email-before-button' );
 		$inactive_days       = Input::post( 'inactive-days', 0, Input::TYPE_INT );
+		$button_link         = Input::post( 'email-button-link', '' );
 
 		$tutor_email_options = array();
-		$tutor_email_options = get_option( 'email_template_data' );
+		$tutor_email_options = get_option( self::EMAIL_TEMPLATE_DATA_OPTION );
 		$tutor_options       = get_option( 'tutor_option' );
 		$message             = json_encode( Input::post( 'email-additional-message', '', Input::TYPE_KSES_POST ) );
 
@@ -429,7 +726,7 @@ class EmailNotification {
 			'block_content' => $email_block_content,
 			'before_button' => wp_kses_post( wp_unslash( $email_before_button ) ),
 			'inactive_days' => $inactive_days,
-
+			'button_link'   => $button_link,
 		);
 
 		if ( ! empty( $email_option_data ) ) {
@@ -448,7 +745,7 @@ class EmailNotification {
 			$tutor_email_options = array_merge( $email_option_data, $email_request );
 		}
 
-		update_option( 'email_template_data', $tutor_email_options );
+		update_option( self::EMAIL_TEMPLATE_DATA_OPTION, $tutor_email_options, false );
 		update_option( 'tutor_option', $tutor_options );
 
 		wp_send_json_success( $message );
@@ -635,7 +932,7 @@ class EmailNotification {
 			$testing_email = array_map( 'sanitize_email', $testing_email );
 			$testing_email = array_filter(
 				$testing_email,
-				function( $email ) {
+				function ( $email ) {
 					return ! empty( $email );
 				}
 			);
@@ -647,13 +944,14 @@ class EmailNotification {
 		$test_type     = Input::post( 'test_type' );
 		$email_subject = '';
 		if ( 'trigger_template' === $test_type ) {
-			$email_data                    = get_option( 'email_template_data' );
+			$email_data                    = get_option( self::EMAIL_TEMPLATE_DATA_OPTION );
 			$recipient_data                = $email_data[ get_request( 'email_to' ) ][ get_request( 'email_key' ) ];
 			$tempData       = $email_data[ get_request( 'email_to' ) ][ get_request( 'email_key' ) ]; //phpcs:ignore
 			$email_subject                 = wp_kses_post( $recipient_data['subject'] );
 			$replacable['{email_heading}'] = isset( $recipient_data['heading'] ) ? $recipient_data['heading'] : '';
 			$replacable['{email_message}'] = isset( $recipient_data['message'] ) ? $this->prepare_message( $recipient_data['message'] ) : '';
 			$replacable['{footer_text}']   = isset( $recipient_data['footer_text'] ) ? $recipient_data['footer_text'] : '';
+			$replacable['{button_link}']   = isset( $recipient_data['button_link'] ) ? $recipient_data['button_link'] : '';
 		}
 
 		if ( 'email_settings' === $test_type ) {
@@ -675,15 +973,15 @@ class EmailNotification {
 		$instructor_name        = __( 'Sample Instructor Name', 'tutor-pro' );
 		$instructor_description = __( 'Sample Instructor Description', 'tutor-pro' );
 		$email_template         = get_request( 'email_template' );
-		$tutor_url              = 'https://www.themeum.com/product/tutor-lms';
+		$tutor_url              = 'https://tutorlms.com';
 		$approved_url           = sprintf( admin_url( 'admin.php?page=%s&action=%s' ), 'tutor_withdraw_requests', 'approved' );
 		$rejected_url           = sprintf( admin_url( 'admin.php?page=%s&action=%s' ), 'tutor_withdraw_requests', 'rejected' );
 		$course_title           = __( 'Sample Course Title', 'tutor-pro' );
 		$lesson_title           = __( 'Sample Lesson Title', 'tutor-pro' );
 		$quiz_title             = __( 'Sample Quiz Title?', 'tutor-pro' );
 		$assignment_name        = __( 'Sample Assignment Name', 'tutor-pro' );
-		$total_amount           = 100;
-		$earned_amount          = 80;
+		$total_amount           = tutor_utils()->tutor_price( 100 );
+		$earned_amount          = tutor_utils()->tutor_price( 80 );
 		$instructor_avatar      = get_avatar_url( wp_get_current_user()->ID );
 		$lorem_date             = the_time( 'l, F jS, Y' );
 		$announcement_title     = 'Sample announcement title';
@@ -694,7 +992,7 @@ class EmailNotification {
 		$replacable['{current_year}']           = gmdate( 'Y' );
 		$replacable['{earned_marks}']           = 8;
 		$replacable['{total_marks}']            = 10;
-		$replacable['{attempt_result}']         = '<span class="tutor-badge-label label-success">Pass</span>';
+		$replacable['{attempt_result}']         = '<span class="tutor-badge-label label-success">' . esc_html__( 'Pass', 'tutor-pro' ) . '</span>';
 		$replacable['{student_name}']           = $student_name;
 		$replacable['{student_username}']       = $this->_generate_username( $student_name );
 		$replacable['{user_name}']              = tutor_utils()->get_user_name( $current_user );
@@ -747,6 +1045,9 @@ class EmailNotification {
 		$replacable['{plan_name}']              = EmailPlaceholder::get_test_data( 'plan_name' );
 		$replacable['{withdraw_method}']        = EmailPlaceholder::get_test_data( 'withdraw_method' );
 		$replacable['{withdraw_time}']          = EmailPlaceholder::get_test_data( 'withdraw_time' );
+		$replacable['{submission_date}']        = EmailPlaceholder::get_test_data( 'submission_date' );
+		$replacable['{gift_message}']           = EmailPlaceholder::get_test_data( 'gift_message' );
+		$replacable['{delivery_date}']          = EmailPlaceholder::get_test_data( 'delivery_date' );
 
 		// Keep this below of all replaceable string to generate dynamic subject.
 		$subject = __( '[Test]', 'tutor-pro' ) . ' ' . $this->get_replaced_text( $email_subject, array_keys( $replacable ), array_values( $replacable ) );
@@ -767,17 +1068,26 @@ class EmailNotification {
 	/**
 	 * Function to send course_complete_email_to_student
 	 *
+	 * @since 3.9.2 param $user_id added.
+	 *
 	 * @param  int $course_id is related to course .
+	 * @param  int $user_id the user id.
+	 *
 	 * @return string
 	 */
-	public function course_complete_email_to_student( $course_id ) {
-		$course_completed_to_student = tutor_utils()->get_option( 'email_to_students.completed_course' );
+	public function course_complete_email_to_student( $course_id, $user_id ) {
+		$trigger_name                = 'completed_course';
+		$course_completed_to_student = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $course_completed_to_student ) {
 			return;
 		}
 
-		$user_id                = get_current_user_id();
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$course                 = get_post( $course_id );
 		$student                = get_userdata( $user_id );
 		$teacher                = get_userdata( $course->post_author );
@@ -789,13 +1099,17 @@ class EmailNotification {
 		$completion_time_format = date_i18n( get_option( 'date_format' ), $completion_time ) . ' ' . date_i18n( get_option( 'time_format' ), $completion_time );
 		$site_url               = get_bloginfo( 'url' );
 		$site_name              = get_bloginfo( 'name' );
-		$option_data            = $this->get_option_data( self::TO_STUDENTS, 'completed_course' );
+		$option_data            = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $student->ID );
 		$header                 = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header                 = apply_filters( 'student_course_completed_email_header', $header, $course_id );
 
 		$certificate_url = '';
 		if ( tutils()->is_addon_enabled( TUTOR_CERT()->basename ) ) {
-			$certificate_url = ( new Certificate( true ) )->get_certificate( $course_id );
+			$certificate         = new Certificate( true );
+			$disable_certificate = $certificate->disable_certificate_for_individual_courses( $course_id );
+			if ( ! $disable_certificate ) {
+				$certificate_url = $certificate->get_certificate( $course_id, false, $user_id );
+			}
 		}
 
 		$replacable['{testing_email_notice}']   = '';
@@ -829,24 +1143,25 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student->user_email, $subject, $message, $header );
-
 	}
 
 	/**
 	 * Course complete email to teacher.
 	 *
+	 * @since 3.9.3 param $user_id added.
+	 *
 	 * @param int $course_id course id.
+	 * @param int $user_id the user id.
 	 *
 	 * @return void
 	 */
-	public function course_complete_email_to_teacher( $course_id ) {
+	public function course_complete_email_to_teacher( $course_id, $user_id ) {
 		$course_completed_to_teacher = tutor_utils()->get_option( 'email_to_teachers.a_student_completed_course' );
 
 		if ( ! $course_completed_to_teacher ) {
 			return;
 		}
 
-		$user_id                = get_current_user_id();
 		$student                = get_userdata( $user_id );
 		$course                 = get_post( $course_id );
 		$teacher                = get_userdata( $course->post_author );
@@ -855,7 +1170,7 @@ class EmailNotification {
 		$completion_time_format = date_i18n( get_option( 'date_format' ), $completion_time ) . ' ' . date_i18n( get_option( 'time_format' ), $completion_time );
 		$site_url               = get_bloginfo( 'url' );
 		$site_name              = get_bloginfo( 'name' );
-		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'a_student_completed_course' );
+		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'a_student_completed_course', $teacher->ID );
 		$header                 = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header                 = apply_filters( 'student_course_completed_email_header', $header, $course_id );
 		$dashboard_url          = tutor_utils()->tutor_dashboard_url();
@@ -885,7 +1200,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
 	}
 
 
@@ -897,38 +1211,77 @@ class EmailNotification {
 	 * @return void.
 	 */
 	public function quiz_finished_send_email_to_student( $attempt_id ) {
-		$quiz_completed = tutor_utils()->get_option( 'email_to_students.quiz_completed' );
+		$attempt = tutor_utils()->get_attempt( $attempt_id );
+		if ( ! $attempt ) {
+			return;
+		}
+
+		/**
+		 * Skip auto-submit email while answers still need instructor review.
+		 */
+		if ( QuizModel::RESULT_PENDING === QuizModel::prepare_attempt_result( $attempt ) ) {
+			return;
+		}
+
+		$this->send_quiz_graded_email_to_student( $attempt_id );
+	}
+
+	/**
+	 * Send quiz graded/completed email to student.
+	 *
+	 * @param int $attempt_id attempt id.
+	 *
+	 * @return void
+	 */
+	public function send_quiz_graded_email_to_student( $attempt_id ) {
+		$trigger_name   = 'quiz_completed';
+		$quiz_completed = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $quiz_completed ) {
 			return;
 		}
 
 		$attempt = tutor_utils()->get_attempt( $attempt_id );
+		if ( ! $attempt ) {
+			return;
+		}
 
-		$earned_percentage = $attempt->earned_marks > 0 ? ( number_format( ( $attempt->earned_marks * 100 ) / $attempt->total_marks ) ) : 0;
+		$user_id = tutor_utils()->avalue_dot( 'user_id', $attempt );
+
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
+		$earned_percentage = QuizModel::calculate_attempt_earned_percentage( $attempt );
 		$passing_grade     = (int) tutor_utils()->get_quiz_option( $attempt->quiz_id, 'passing_grade', 0 );
 
-		if ( 'review_required' === $attempt->attempt_status ) {
-			$attempt_result = '<span class="tutor-badge-label label-warning">' . esc_attr( 'Pending' ) . '</span>';
+		if ( QuizModel::RESULT_PENDING === QuizModel::prepare_attempt_result( $attempt ) || QuizModel::REVIEW_REQUIRED === $attempt->attempt_status ) {
+			$attempt_result = '<span class="tutor-badge-label label-warning">' . esc_html__( 'Pending', 'tutor-pro' ) . '</span>';
 		} else {
 			$attempt_result = $earned_percentage >= $passing_grade ?
-															'<span class="tutor-badge-label label-success">' . esc_attr( 'Pass' ) . '</span>' :
-															'<span class="tutor-badge-label label-danger">' . esc_attr( 'Fail' ) . '</span>';
+															'<span class="tutor-badge-label label-success">' . esc_html__( 'Pass', 'tutor-pro' ) . '</span>' :
+															'<span class="tutor-badge-label label-danger">' . esc_html__( 'Fail', 'tutor-pro' ) . '</span>';
 		}
 
 		$attempt_info           = tutor_utils()->quiz_attempt_info( $attempt_id );
 		$submission_time        = tutor_utils()->avalue_dot( 'submission_time', $attempt_info );
 		$submission_time        = $submission_time ? $submission_time : tutor_time();
-		$quiz_id                = tutor_utils()->avalue_dot( 'comment_post_ID', $attempt );
+		$quiz_id                = isset( $attempt->quiz_id ) ? (int) $attempt->quiz_id : 0;
+		$course_id              = isset( $attempt->course_id ) ? (int) $attempt->course_id : 0;
+		if ( ! $course_id && $quiz_id ) {
+			$course = CourseModel::get_course_by_quiz( $quiz_id );
+			if ( $course ) {
+				$course_id = (int) $course->ID;
+			}
+		}
 		$quiz_name              = get_the_title( $quiz_id );
-		$course                 = CourseModel::get_course_by_quiz( $quiz_id );
-		$course_id              = tutor_utils()->avalue_dot( 'ID', $course );
 		$course_title           = get_the_title( $course_id );
 		$submission_time_format = date_i18n( get_option( 'date_format' ), $submission_time ) . ' ' . date_i18n( get_option( 'time_format' ), $submission_time );
 		$quiz_url               = get_the_permalink( $quiz_id );
-		$user                   = get_userdata( tutor_utils()->avalue_dot( 'user_id', $attempt ) );
+		$user                   = get_userdata( $user_id );
 		$site_url               = get_bloginfo( 'url' );
 		$site_name              = get_bloginfo( 'name' );
-		$option_data            = $this->get_option_data( self::TO_STUDENTS, 'quiz_completed' );
+		$option_data            = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $user_id );
 		$header                 = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header                 = apply_filters( 'student_quiz_completed_email_header', $header, $attempt_id );
 
@@ -937,7 +1290,7 @@ class EmailNotification {
 		$replacable['{total_marks}']          = $attempt->total_marks;
 		$replacable['{earned_marks}']         = $attempt->earned_marks;
 		$replacable['{attempt_result}']       = $attempt_result;
-		$replacable['{attempt_url}']          = tutor_utils()->tutor_dashboard_url() . 'my-quiz-attempts/?view_quiz_attempt_id=' . $attempt_id;
+		$replacable['{attempt_url}']          = ProQuizModel::get_attempt_details_url( $attempt_id, 'student' );
 
 		$replacable['{quiz_name}']       = $quiz_name;
 		$replacable['{course_name}']     = $course_title;
@@ -956,7 +1309,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $user->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -974,15 +1326,15 @@ class EmailNotification {
 
 		$attempt = tutor_utils()->get_attempt( $attempt_id );
 
-		$earned_percentage = $attempt->earned_marks > 0 ? ( number_format( ( $attempt->earned_marks * 100 ) / $attempt->total_marks ) ) : 0;
+		$earned_percentage = QuizModel::calculate_attempt_earned_percentage( $attempt );
 		$passing_grade     = (int) tutor_utils()->get_quiz_option( $attempt->quiz_id, 'passing_grade', 0 );
 
 		if ( 'review_required' === $attempt->attempt_status ) {
-			$attempt_result = '<span class="tutor-badge-label label-warning">' . esc_attr( 'Review Required' ) . '</span>';
+			$attempt_result = '<span class="tutor-badge-label label-warning">' . esc_html__( 'Review Required', 'tutor-pro' ) . '</span>';
 		} else {
 			$attempt_result = $earned_percentage >= $passing_grade ?
-															'<span class="tutor-badge-label label-success">' . esc_attr( 'Pass' ) . '</span>' :
-															'<span class="tutor-badge-label label-danger">' . esc_attr( 'Fail' ) . '</span>';
+															'<span class="tutor-badge-label label-success">' . esc_html__( 'Pass', 'tutor-pro' ) . '</span>' :
+															'<span class="tutor-badge-label label-danger">' . esc_html__( 'Fail', 'tutor-pro' ) . '</span>';
 		}
 
 		$attempt_info           = tutor_utils()->quiz_attempt_info( $attempt_id );
@@ -999,14 +1351,12 @@ class EmailNotification {
 		$teacher                = get_userdata( $course->post_author );
 		$site_url               = get_bloginfo( 'url' );
 		$site_name              = get_bloginfo( 'name' );
-		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'student_submitted_quiz' );
+		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'student_submitted_quiz', $teacher->ID );
 		$header                 = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header                 = apply_filters( 'student_quiz_completed_to_instructor_email_header', $header, $attempt_id );
 
-		$attempt_url = admin_url( 'admin.php?page=tutor_quiz_attempts&view_quiz_attempt_id=' . $attempt_id );
-		if ( (bool) get_tutor_option( 'hide_admin_bar_for_users' ) ) {
-			$attempt_url = tutor_utils()->tutor_dashboard_url( 'quiz-attempts/?view_quiz_attempt_id=' . $attempt_id );
-		}
+		$attempt_url_context = (bool) get_tutor_option( 'hide_admin_bar_for_users' ) ? 'frontend' : 'admin';
+		$attempt_url         = ProQuizModel::get_attempt_details_url( $attempt_id, $attempt_url_context );
 
 		$replacable['{testing_email_notice}'] = '';
 		$replacable['{user_name}']            = tutor_utils()->get_user_name( $teacher );
@@ -1033,7 +1383,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1066,7 +1415,7 @@ class EmailNotification {
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'a_student_enrolled_in_course' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'a_student_enrolled_in_course', $teacher->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'to_instructor_course_enrolled_email_header', $header, $course->ID );
 
@@ -1095,7 +1444,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1106,7 +1454,8 @@ class EmailNotification {
 	 * @return void.
 	 */
 	public function welcome_email_to_student( $student_id ) {
-		$welcome_notification = tutor_utils()->get_option( 'email_to_students.welcome_student' );
+		$trigger_name         = 'welcome_student';
+		$welcome_notification = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $welcome_notification ) {
 			return;
@@ -1118,9 +1467,14 @@ class EmailNotification {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_STUDENTS, 'welcome_student' );
+		$option_data = $this->get_option_data( self::TO_STUDENTS, $trigger_name );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'student_welcome_email_header', $header );
 
@@ -1140,7 +1494,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1154,7 +1507,8 @@ class EmailNotification {
 	 * @return void.
 	 */
 	public function course_enroll_email_to_student( $course_id, $student_id, $enrol_id, $status_to = 'completed' ) {
-		$enroll_notification = tutor_utils()->get_option( 'email_to_students.course_enrolled' );
+		$trigger_name        = 'course_enrolled';
+		$enroll_notification = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $enroll_notification || 'completed' !== $status_to ) {
 			return;
@@ -1166,13 +1520,18 @@ class EmailNotification {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$course             = tutor_utils()->get_course_by_enrol_id( $enrol_id );
 		$enroll_time        = tutor_time();
 		$enroll_time_format = date_i18n( get_option( 'date_format' ), $enroll_time ) . ' ' . date_i18n( get_option( 'time_format' ), $enroll_time );
 		$course_start_url   = tutor_utils()->get_course_first_lesson( $course_id );
 		$site_url           = get_bloginfo( 'url' );
 		$site_name          = get_bloginfo( 'name' );
-		$option_data        = $this->get_option_data( self::TO_STUDENTS, 'course_enrolled' );
+		$option_data        = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $student->ID );
 		$header             = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header             = apply_filters( 'student_course_enrolled_email_header', $header, $enrol_id );
 
@@ -1195,7 +1554,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1204,8 +1562,8 @@ class EmailNotification {
 	 * @return void.
 	 */
 	public function inactive_student_email_to_student() {
-
-		$inactive_notification = tutor_utils()->get_option( 'email_to_students.inactive_student' );
+		$trigger_name          = 'inactive_student';
+		$inactive_notification = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $inactive_notification ) {
 			return;
@@ -1216,12 +1574,10 @@ class EmailNotification {
 
 		if ( false === $has_transient_data ) {
 
-			$site_url    = get_bloginfo( 'url' );
-			$site_name   = get_bloginfo( 'name' );
-			$option_data = $this->get_option_data( self::TO_STUDENTS, 'inactive_student' );
-			$days        = $option_data['inactive_days'];
-			$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
-			$header      = apply_filters( 'to_inactive_student_email_header', $header );
+			$site_url  = get_bloginfo( 'url' );
+			$site_name = get_bloginfo( 'name' );
+			$header    = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+			$header    = apply_filters( 'to_inactive_student_email_header', $header );
 
 			$meta_query = array(
 				'relation' => 'AND',
@@ -1243,9 +1599,16 @@ class EmailNotification {
 			);
 
 			foreach ( $users as $user ) {
-				$student = get_userdata( $user->ID );
+				$student     = get_userdata( $user->ID );
+				$option_data = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $student->ID );
+				$days        = $option_data['inactive_days'];
 				// If student not found return.
 				if ( false === $student ) {
+					continue;
+				}
+
+				$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student->ID );
+				if ( ! $notification_enabled ) {
 					return;
 				}
 
@@ -1253,7 +1616,7 @@ class EmailNotification {
 				$reminded_user_meta   = get_user_meta( $user->ID, self::INACTIVE_REMINDED_META, true );
 
 				if ( true == $reminded_user_meta ) {
-					return;
+					continue;
 				}
 
 				if ( ! empty( $last_login_timestamp ) ) {
@@ -1299,10 +1662,12 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function lesson_comment_to_student( $comment_id, $comment_data ) {
-		$comment_notification = tutor_utils()->get_option( 'email_to_students.lesson_comment_replied' );
+		$trigger_name         = 'lesson_comment_replied';
+		$comment_notification = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $comment_notification ) {
 			return;
 		}
+
 		$comment_parent     = $comment_data['comment_parent'];
 		$comment_lesson_id  = $comment_data['comment_post_ID'];
 		$lesson_title       = get_the_title( $comment_lesson_id );
@@ -1315,7 +1680,7 @@ class EmailNotification {
 		$get_comment        = $comment_data['comment_content'];
 		$site_url           = get_bloginfo( 'url' );
 		$site_name          = get_bloginfo( 'name' );
-		$option_data        = $this->get_option_data( self::TO_STUDENTS, 'lesson_comment_replied' );
+		$option_data        = $this->get_option_data( self::TO_STUDENTS, 'lesson_comment_replied', $student->ID );
 		$header             = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header             = apply_filters( 'to_instructor_commented', $header, $course_id );
 		$users              = self::get_thread_users( $comment_details, $comment_data, 'comment' );
@@ -1329,7 +1694,7 @@ class EmailNotification {
 		if ( is_array( $users ) && count( $users ) ) {
 			$users = array_filter(
 				$users,
-				function( $user ) use ( $current_user_email ) {
+				function ( $user ) use ( $current_user_email ) {
 					if ( $user->user_email !== $current_user_email ) {
 						return $user;
 					}
@@ -1339,6 +1704,11 @@ class EmailNotification {
 
 		// Send mail to all users who are on the reply thread.
 		foreach ( $users as $user ) {
+			$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user->ID );
+			if ( ! $notification_enabled ) {
+				continue;
+			}
+
 			$receiver_email = $user->user_email;
 			$receiver_name  = tutor_utils()->display_name( $user->ID );
 
@@ -1349,7 +1719,7 @@ class EmailNotification {
 			$replacable['{lesson_title}']         = $lesson_title;
 			$replacable['{comment_by}']           = $student->display_name;
 			$replacable['{course_name}']          = $course->post_title;
-			$replacable['{course_url}']           = get_the_permalink( $course_id );
+			$replacable['{course_url}']           = UrlHelper::add_query_params( tutor_utils()->tutor_dashboard_url( Dashboard::DISCUSSION_PAGE_SLUG ), array( 'tab' => 'lesson-comments' ) );
 			$replacable['{comment}']              = $get_comment;
 			$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
 			$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
@@ -1395,7 +1765,7 @@ class EmailNotification {
 		$student            = get_userdata( $user_id );
 		$course             = get_post( $course_id );
 		$teacher            = get_userdata( $course->post_author );
-		$option_data        = $this->get_option_data( self::TO_TEACHERS, 'a_student_placed_question' );
+		$option_data        = $this->get_option_data( self::TO_TEACHERS, 'a_student_placed_question', $teacher->ID );
 		$header             = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header             = apply_filters( 'to_teacher_asked_question_by_student_email_header', $header, $course_id );
 
@@ -1422,7 +1792,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1449,7 +1818,7 @@ class EmailNotification {
 		$teacher                = get_userdata( $course->post_author );
 		$completion_time        = tutor_time();
 		$completion_time_format = date_i18n( get_option( 'date_format' ), $completion_time ) . ' ' . date_i18n( get_option( 'time_format' ), $completion_time );
-		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'a_student_completed_lesson' );
+		$option_data            = $this->get_option_data( self::TO_TEACHERS, 'a_student_completed_lesson', $teacher->ID );
 		$header                 = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header                 = apply_filters( 'student_lesson_completed_email_header', $header, $lesson_id );
 
@@ -1476,7 +1845,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1540,7 +1908,6 @@ class EmailNotification {
 		}
 
 		$this->instructor_application_received( $instructor );
-
 	}
 
 	/**
@@ -1560,7 +1927,7 @@ class EmailNotification {
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_received' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_received', $instructor->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'instructor_application_received_email_header', $header, $instructor->ID );
 
@@ -1636,7 +2003,6 @@ class EmailNotification {
 			$message                   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 			$this->send( $admin_user->user_email, $subject, $message, $header );
 		}
-
 	}
 
 	/**
@@ -1694,7 +2060,6 @@ class EmailNotification {
 			$message                   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 			$this->send( $admin_user->user_email, $subject, $message, $header );
 		}
-
 	}
 
 	/**
@@ -1752,7 +2117,6 @@ class EmailNotification {
 			$message                   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 			$this->send( $admin_user->user_email, $subject, $message, $header );
 		}
-
 	}
 
 	/**
@@ -1771,10 +2135,10 @@ class EmailNotification {
 		$tutor_ajax     = Input::post( 'tutor_ajax_action' );
 		$auto_save      = 'tutor_course_builder_draft_save' === $tutor_ajax;
 
-		if ( ! $course_updated || ! $update || 'pending' !== $course->post_status || $auto_save ) {
+		if ( ! $course_updated || ! $update || 'pending' === $course->post_status || $auto_save ) {
 			return;
 		}
-		if ( 'publish' === $course->post_status ) {
+		if ( ! tutor_utils()->is_instructor_of_this_course( get_current_user_id(), $course_id ) ) {
 			return;
 		}
 		if ( 'Publish' === Input::post( 'original_publish' ) ) {
@@ -1815,7 +2179,6 @@ class EmailNotification {
 			$message                   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 			$this->send( $admin_user->user_email, $subject, $message, $header );
 		}
-
 	}
 
 	/**
@@ -1852,7 +2215,7 @@ class EmailNotification {
 		$review_link     = esc_url( $submitted_url . '?assignment=' . $submitted_assignment->comment_post_ID );
 		$site_url        = get_bloginfo( 'url' );
 		$site_name       = get_bloginfo( 'name' );
-		$option_data     = $this->get_option_data( self::TO_TEACHERS, 'student_submitted_assignment' );
+		$option_data     = $this->get_option_data( self::TO_TEACHERS, 'student_submitted_assignment', $author_id );
 		$header          = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header          = apply_filters( 'student_submitted_assignment_email_header', $header, $assignment_submit_id );
 
@@ -1897,28 +2260,33 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function tutor_after_assignment_evaluate( $assignment_submit_id ) {
-
-		$assignment_graded = tutor_utils()->get_option( 'email_to_students.assignment_graded' );
+		$trigger_name      = 'assignment_graded';
+		$assignment_graded = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $assignment_graded ) {
 			return;
 		}
 
-		$site_url             = get_bloginfo( 'url' );
-		$site_name            = get_bloginfo( 'name' );
 		$submitted_assignment = tutor_utils()->get_assignment_submit_info( $assignment_submit_id );
-		$student_email        = get_the_author_meta( 'user_email', $submitted_assignment->user_id );
-		$student_name         = tutor_utils()->get_user_name( get_userdata( $submitted_assignment->user_id ) );
-		$course_name          = get_the_title( $submitted_assignment->comment_parent );
-		$course_url           = get_the_permalink( $submitted_assignment->comment_parent );
-		$assignment_max_mark  = tutor_utils()->get_assignment_option( $submitted_assignment->comment_post_ID, 'total_mark' );
-		$assignment_name      = get_the_title( $submitted_assignment->comment_post_ID );
-		$assignment_url       = get_the_permalink( $submitted_assignment->comment_post_ID );
-		$assignment_score     = get_comment_meta( $assignment_submit_id, 'assignment_mark', true );
-		$assignment_comment   = get_comment_meta( $assignment_submit_id, 'instructor_note', true );
-		$option_data          = $this->get_option_data( self::TO_STUDENTS, 'assignment_graded' );
-		$header               = 'Content-Type: ' . $this->get_content_type() . "\r\n";
-		$header               = apply_filters( 'assignment_evaluate_email_header', $header, $assignment_submit_id );
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $submitted_assignment->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
+		$site_url            = get_bloginfo( 'url' );
+		$site_name           = get_bloginfo( 'name' );
+		$student_email       = get_the_author_meta( 'user_email', $submitted_assignment->user_id );
+		$student_name        = tutor_utils()->get_user_name( get_userdata( $submitted_assignment->user_id ) );
+		$course_name         = get_the_title( $submitted_assignment->comment_parent );
+		$course_url          = get_the_permalink( $submitted_assignment->comment_parent );
+		$assignment_max_mark = tutor_utils()->get_assignment_option( $submitted_assignment->comment_post_ID, 'total_mark' );
+		$assignment_name     = get_the_title( $submitted_assignment->comment_post_ID );
+		$assignment_url      = get_the_permalink( $submitted_assignment->comment_post_ID );
+		$assignment_score    = get_comment_meta( $assignment_submit_id, 'assignment_mark', true );
+		$assignment_comment  = get_comment_meta( $assignment_submit_id, 'instructor_note', true );
+		$option_data         = $this->get_option_data( self::TO_STUDENTS, $trigger_name );
+		$header              = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$header              = apply_filters( 'assignment_evaluate_email_header', $header, $assignment_submit_id );
 
 		$replacable['{testing_email_notice}'] = '';
 		$replacable['{site_url}']             = $site_url;
@@ -1942,7 +2310,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -1955,7 +2322,8 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function tutor_student_remove_from_course( $enrol_id ) {
-		$remove_from_course = tutor_utils()->get_option( 'email_to_students.remove_from_course' );
+		$trigger_name       = 'remove_from_course';
+		$remove_from_course = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $remove_from_course ) {
 			return;
@@ -1966,13 +2334,18 @@ class EmailNotification {
 			return;
 		}
 
+		$student_id           = $enrolment->ID;
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$site_url      = get_bloginfo( 'url' );
 		$site_name     = get_bloginfo( 'name' );
 		$course_name   = $enrolment->course_title;
 		$course_url    = get_the_permalink( $enrolment->course_id );
 		$student_email = $enrolment->user_email;
-		$student_id    = $enrolment->ID;
-		$option_data   = $this->get_option_data( self::TO_STUDENTS, 'remove_from_course' );
+		$option_data   = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $student_id );
 
 		$header = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header = apply_filters( 'remove_from_course_email_header', $header, $enrol_id );
@@ -1985,7 +2358,6 @@ class EmailNotification {
 		$replacable['{course_url}']           = $course_url;
 		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
 		$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
-		$replacable['{footer_text}']          = $this->get_replaced_text( $option_data['footer_text'], array_keys( $replacable ), array_values( $replacable ) );
 		$replacable['{email_message}']        = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
 		$subject                              = $this->get_replaced_text( $option_data['subject'], array_keys( $replacable ), array_values( $replacable ) );
 
@@ -1995,7 +2367,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2008,7 +2379,8 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function tutor_enrollment_after_expired( $enrol_id ) {
-		$enrollment_expired = tutor_utils()->get_option( 'email_to_students.enrollment_expired' );
+		$trigger_name       = 'enrollment_expired';
+		$enrollment_expired = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $enrollment_expired ) {
 			return;
@@ -2019,13 +2391,19 @@ class EmailNotification {
 			return;
 		}
 
+		$student_id           = $enrolment->ID;
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $student_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$site_url      = get_bloginfo( 'url' );
 		$site_name     = get_bloginfo( 'name' );
 		$course_name   = $enrolment->course_title;
 		$course_url    = get_the_permalink( $enrolment->course_id );
-		$student_name  = tutor_utils()->get_user_name( get_userdata( $enrolment->ID ) );
+		$student_name  = tutor_utils()->get_user_name( get_userdata( $student_id ) );
 		$student_email = $enrolment->user_email;
-		$option_data   = $this->get_option_data( self::TO_STUDENTS, 'enrollment_expired' );
+		$option_data   = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $student_id );
 		$header        = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header        = apply_filters( 'enrollment_expired_email_header', $header, $enrol_id );
 
@@ -2047,7 +2425,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $student_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2062,11 +2439,18 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function tutor_announcements_notify_students( $announcement_id, $announcement, $action_type = '' ) {
-
 		$new_announcement_posted = tutor_utils()->get_option( 'email_to_students.new_announcement_posted' );
 		$announcement_updated    = tutor_utils()->get_option( 'email_to_students.announcement_updated' );
 
-		if ( ! $new_announcement_posted && ! $announcement_updated ) {
+		if ( empty( $action_type ) || ! in_array( $action_type, array( 'create', 'update' ), true ) ) {
+			return;
+		}
+
+		if ( 'create' === $action_type && ! $new_announcement_posted ) {
+			return;
+		}
+
+		if ( 'update' === $action_type && ! $announcement_updated ) {
 			return;
 		}
 
@@ -2080,9 +2464,7 @@ class EmailNotification {
 		$announcement_date    = $announcement->post_date;
 		$author_fullname      = get_the_author_meta( 'display_name', $announcement_author );
 
-		$option_data_create = $this->get_option_data( self::TO_STUDENTS, 'new_announcement_posted' );
-		$option_data_update = $this->get_option_data( self::TO_STUDENTS, 'announcement_updated' );
-		$header             = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$header = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 
 		$replacable['{author_fullname}']      = $author_fullname;
 		$replacable['{testing_email_notice}'] = '';
@@ -2097,11 +2479,15 @@ class EmailNotification {
 		$enrolled_students = tutor_utils()->get_students_all_data_by_course_id( $announcement->post_parent );
 
 		foreach ( $enrolled_students as $enrolled_student ) {
+			$option_data_create        = $this->get_option_data( self::TO_STUDENTS, 'new_announcement_posted', $enrolled_student->ID );
+			$option_data_update        = $this->get_option_data( self::TO_STUDENTS, 'announcement_updated', $enrolled_student->ID );
 			$replacable['{user_name}'] = tutor_utils()->get_user_name( get_userdata( $enrolled_student->ID ) );
 
 			if ( 'create' === $action_type ) {
-				if ( ! $new_announcement_posted ) {
-					return;
+				$trigger_name         = 'new_announcement_posted';
+				$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $enrolled_student->ID );
+				if ( ! $notification_enabled ) {
+					continue;
 				}
 
 				$replacable['{logo}']          = isset( $option_data_create['logo'] ) ? $option_data_create['logo'] : $this->email_logo;
@@ -2112,8 +2498,10 @@ class EmailNotification {
 				$template                      = 'to_student_new_announcement_posted';
 
 			} elseif ( 'update' === $action_type ) {
-				if ( ! $announcement_updated ) {
-					return;
+				$trigger_name         = 'announcement_updated';
+				$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $enrolled_student->ID );
+				if ( ! $notification_enabled ) {
+					continue;
 				}
 
 				$replacable['{logo}']          = isset( $option_data_update['logo'] ) ? $option_data_update['logo'] : $this->email_logo;
@@ -2131,7 +2519,6 @@ class EmailNotification {
 
 			$this->send( $enrolled_student->user_email, $subject, $message, $header );
 		}
-
 	}
 
 
@@ -2150,7 +2537,8 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function question_answered_by_instructor( object $student_details, array $reply_details, object $question_details, object $course ) {
-		$after_question_answered = tutor_utils()->get_option( 'email_to_students.after_question_answered' );
+		$trigger_name            = 'after_question_answered';
+		$after_question_answered = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $after_question_answered ) {
 			return;
@@ -2167,7 +2555,7 @@ class EmailNotification {
 		if ( is_array( $users ) && count( $users ) ) {
 			$users = array_filter(
 				$users,
-				function( $user ) use ( $replier_email ) {
+				function ( $user ) use ( $replier_email ) {
 					if ( $user->user_email !== $replier_email ) {
 						return $user;
 					}
@@ -2175,11 +2563,10 @@ class EmailNotification {
 			);
 		}
 
-		$site_url    = get_bloginfo( 'url' );
-		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_STUDENTS, 'after_question_answered' );
-		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
-		$header      = apply_filters( 'question_answered_email_header', $header, $reply_details );
+		$site_url  = get_bloginfo( 'url' );
+		$site_name = get_bloginfo( 'name' );
+		$header    = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$header    = apply_filters( 'question_answered_email_header', $header, $reply_details );
 
 		$subject = "{$replier_name} replied to this question";
 
@@ -2192,6 +2579,12 @@ class EmailNotification {
 
 		// Send mail to all users who are on the reply thread.
 		foreach ( $users as $user ) {
+			$option_data          = $this->get_option_data( self::TO_STUDENTS, $trigger_name, $user->ID );
+			$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user->ID );
+			if ( ! $notification_enabled ) {
+				continue;
+			}
+
 			$receiver_email = $user->user_email;
 			$receiver_name  = tutor_utils()->display_name( $user->ID );
 			// Get instructor info.
@@ -2265,6 +2658,11 @@ class EmailNotification {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, 'after_question_answered', $question_details['user_id'] );
+		if ( $is_enabled_email_to_student && ! $notification_enabled ) {
+			return;
+		}
+
 		$course      = get_post( $question_details['comment_post_ID'] );
 		$course_name = get_the_title( $course->ID );
 
@@ -2276,7 +2674,7 @@ class EmailNotification {
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'a_student_placed_question' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'a_student_placed_question', $instructor_data->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'tutor_email_header_to_instructor_asked_question_by_student', $header );
 
@@ -2364,7 +2762,7 @@ class EmailNotification {
 		$lesson_title = get_the_title( $comment_lesson_id );
 		$site_url     = get_bloginfo( 'url' );
 		$site_name    = get_bloginfo( 'name' );
-		$option_data  = $this->get_option_data( self::TO_TEACHERS, 'new_lesson_comment_posted' );
+		$option_data  = $this->get_option_data( self::TO_TEACHERS, 'new_lesson_comment_posted', $teacher->ID );
 		$header       = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header       = apply_filters( 'to_instructor_commented', $header, $course_id );
 
@@ -2375,7 +2773,7 @@ class EmailNotification {
 		$replacable['{comment_by}']           = $student->display_name;
 		$replacable['{course_name}']          = $course->post_title;
 		$replacable['{lesson_title}']         = $lesson_title;
-		$replacable['{course_url}']           = get_the_permalink( $course_id );
+		$replacable['{course_url}']           = UrlHelper::add_query_params( tutor_utils()->tutor_dashboard_url( Dashboard::DISCUSSION_PAGE_SLUG ), array( 'tab' => 'lesson-comments' ) );
 		$replacable['{comment}']              = $get_comment;
 		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
 		$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
@@ -2390,68 +2788,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $teacher->user_email, $subject, $message, $header );
-
-	}
-
-
-	/**
-	 * After quiz attempts feedback
-	 *
-	 * @since 1.6.9
-	 *
-	 * @param int $attempt_id attempt id.
-	 *
-	 * @return void
-	 */
-	public function feedback_submitted_for_quiz_attempt( $attempt_id ) {
-		$feedback_submitted_for_quiz = tutor_utils()->get_option( 'email_to_students.feedback_submitted_for_quiz' );
-
-		if ( ! $feedback_submitted_for_quiz ) {
-			return;
-		}
-
-		$attempt             = tutor_utils()->get_attempt( $attempt_id );
-		$quiz_title          = get_post_field( 'post_title', $attempt->quiz_id );
-		$course              = get_post( $attempt->course_id );
-		$instructor_name     = get_the_author_meta( 'display_name', $course->post_author );
-		$instructor_feedback = get_post_meta( $attempt_id, 'instructor_feedback', true );
-		$user_email          = get_the_author_meta( 'user_email', $attempt->user_id );
-		$student_fullname    = tutor_utils()->get_user_name( get_userdata( $attempt->user_id ) );
-		$site_url            = get_bloginfo( 'url' );
-		$site_name           = get_bloginfo( 'name' );
-		$option_data         = $this->get_option_data( self::TO_STUDENTS, 'feedback_submitted_for_quiz' );
-		$block_heading       = $option_data['block_heading'];
-		$block_content       = $option_data['block_content'];
-		$header              = 'Content-Type: ' . $this->get_content_type() . "\r\n";
-		$header              = apply_filters( 'feedback_submitted_for_quiz_email_header', $header, $attempt_id );
-
-		$replacable['{testing_email_notice}'] = '';
-		$replacable['{quiz_name}']            = $quiz_title;
-		$replacable['{total_marks}']          = $attempt->total_marks;
-		$replacable['{earned_marks}']         = $attempt->earned_marks;
-		$replacable['{course_name}']          = $course->post_title;
-		$replacable['{instructor_name}']      = $instructor_name;
-		$replacable['{user_name}']            = $student_fullname;
-		$replacable['{instructor_feedback}']  = $instructor_feedback;
-		$replacable['{site_url}']             = $site_url;
-		$replacable['{site_name}']            = $site_name;
-		$replacable['{block_heading}']        = $block_heading;
-		$replacable['{block_content}']        = $block_content;
-		$replacable['{review_url}']           = tutor_utils()->tutor_dashboard_url() . 'my-quiz-attempts/?view_quiz_attempt_id=' . $attempt_id;
-
-		$replacable['{logo}']          = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
-		$replacable['{email_heading}'] = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
-		$replacable['{footer_text}']   = $this->get_replaced_text( isset( $option_data['footer_text'] ) ? $option_data['footer_text'] : '', array_keys( $replacable ), array_values( $replacable ) );
-		$replacable['{email_message}'] = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
-		$subject                       = $this->get_replaced_text( $option_data['subject'], array_keys( $replacable ), array_values( $replacable ) );
-
-		ob_start();
-		$this->tutor_load_email_template( 'to_student_feedback_submitted_for_quiz' );
-		$email_tpl = apply_filters( 'tutor_email_tpl/feedback_submitted_for_quiz', ob_get_clean() );
-		$message   = $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) );
-
-		$this->send( $user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2465,9 +2801,16 @@ class EmailNotification {
 	 * @return void
 	 */
 	public function tutor_course_complete_after( $course_id ) {
-		$rate_course_and_instructor = tutor_utils()->get_option( 'email_to_students.rate_course_and_instructor' );
+		$trigger_name               = 'rate_course_and_instructor';
+		$rate_course_and_instructor = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 
 		if ( ! $rate_course_and_instructor ) {
+			return;
+		}
+
+		$user_id              = get_current_user_id();
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user_id );
+		if ( ! $notification_enabled ) {
 			return;
 		}
 
@@ -2476,7 +2819,6 @@ class EmailNotification {
 		$course           = get_post( $course_id );
 		$course_url       = get_the_permalink( $course_id );
 		$instructor_url   = tutor_utils()->profile_url( $course->post_author, true );
-		$user_id          = get_current_user_id();
 		$user_email       = get_the_author_meta( 'user_email', $user_id );
 		$student_fullname = tutor_utils()->get_user_name( get_userdata( $user_id ) );
 		$option_data      = $this->email_options['email_to_students']['rate_course_and_instructor'];
@@ -2502,7 +2844,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $user_email, $subject, $message, $header );
-
 	}
 
 
@@ -2583,7 +2924,7 @@ class EmailNotification {
 		$user_info   = get_userdata( $instructor_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_accepted' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_accepted', $user_info->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'instructor_application_approved_email_header', $header, $user_info->ID );
 
@@ -2605,7 +2946,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $user_info->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2625,7 +2965,7 @@ class EmailNotification {
 		$user_info   = get_userdata( $instructor_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_rejected' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'instructor_application_rejected', $user_info->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'instructor_application_rejected_email_header', $header, $user_info->ID );
 
@@ -2646,7 +2986,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $user_info->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2686,13 +3025,12 @@ class EmailNotification {
 		$approve_time          = $withdrawal->created_at;
 		$withdraw_approve_time = date_i18n( get_option( 'date_format' ), $approve_time ) . ' ' . date_i18n( get_option( 'time_format' ), $approve_time );
 		$withdraw_amount       = $withdrawal->amount;
-		$currency              = get_option( 'woocommerce_currency' );
 
 		$total_amount = tutor_utils()->get_earning_sum( $instructor->ID )->balance;
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_option_data( self::TO_TEACHERS, 'withdrawal_request_approved' );
+		$option_data = $this->get_option_data( self::TO_TEACHERS, 'withdrawal_request_approved', $instructor->ID );
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header      = apply_filters( 'withdrawal_request_approved_email_header', $header, $withdrawal_id );
 
@@ -2700,10 +3038,10 @@ class EmailNotification {
 		$replacable['{instructor_username}']   = $instructor->display_name;
 		$replacable['{admin_user}']            = wp_get_current_user()->display_name;
 		$replacable['{user_name}']             = tutor_utils()->get_user_name( $instructor );
-		$replacable['{withdraw_amount}']       = $withdraw_amount . ' ' . $currency;
+		$replacable['{withdraw_amount}']       = tutor_utils()->tutor_price( $withdraw_amount );
 		$replacable['{withdraw_method_name}']  = $withdraw_method;
 		$replacable['{withdraw_approve_time}'] = $withdraw_approve_time;
-		$replacable['{total_amount}']          = $total_amount . ' ' . $currency;
+		$replacable['{total_amount}']          = tutor_utils()->tutor_price( $total_amount );
 		$replacable['{site_url}']              = $site_url;
 		$replacable['{site_name}']             = $site_name;
 		$replacable['{logo}']                  = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
@@ -2718,7 +3056,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $instructor->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2738,11 +3075,12 @@ class EmailNotification {
 
 		$site_url             = get_bloginfo( 'url' );
 		$site_name            = get_bloginfo( 'name' );
-		$option_data          = $this->get_option_data( self::TO_TEACHERS, 'withdrawal_request_rejected' );
+		$option_data          = $this->get_option_data( self::TO_TEACHERS, 'withdrawal_request_rejected', $instructor->ID );
 		$withdrawal           = $this->get_witdrawal_by_id( $withdrawal_id );
 		$withdraw_method      = maybe_unserialize( $withdrawal->method_data )['withdraw_method_name'];
 		$reject_time          = $withdrawal->created_at;
 		$withdraw_reject_time = date_i18n( get_option( 'date_format' ), $reject_time ) . ' ' . date_i18n( get_option( 'time_format' ), $reject_time );
+		$withdraw_amount      = $withdrawal->amount;
 
 		$header = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 		$header = apply_filters( 'withdrawal_request_rejected_email_header', $header, $withdrawal_id );
@@ -2750,7 +3088,7 @@ class EmailNotification {
 		$replacable['{testing_email_notice}'] = '';
 		$replacable['{admin_user}']           = wp_get_current_user()->display_name;
 		$replacable['{instructor_username}']  = $instructor->display_name;
-		$replacable['{withdraw_amount}']      = $withdrawal->amount;
+		$replacable['{withdraw_amount}']      = tutor_utils()->tutor_price( $withdraw_amount );
 		$replacable['{withdraw_method_name}'] = $withdraw_method;
 		$replacable['{withdraw_reject_time}'] = $withdraw_reject_time;
 		$replacable['{user_name}']            = tutor_utils()->get_user_name( $instructor );
@@ -2768,7 +3106,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $instructor->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2830,7 +3167,6 @@ class EmailNotification {
 
 		//phpcs:ignore
 		$subject  = __( 'New withdrawal request from ' . $instructor->display_name . ' for ' . $instructor->amount, 'tutor-pro' );
-		$currency = get_option( 'woocommerce_currency' );
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
@@ -2845,7 +3181,7 @@ class EmailNotification {
 		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
 		$replacable['{instructor_username}']  = $instructor->display_name;
 		$replacable['{instructor_email}']     = $instructor->user_email;
-		$replacable['{withdraw_amount}']      = $withdraw_amount . ' ' . $currency;
+		$replacable['{withdraw_amount}']      = tutor_utils()->tutor_price( $withdraw_amount );
 		$replacable['{withdraw_method_name}'] = $withdraw_method;
 		$replacable['{request_time}']         = $request_time;
 		$replacable['{withdraw_method}']      = $withdraw_method;
@@ -2890,7 +3226,6 @@ class EmailNotification {
 
 		$withdraw        = $this->get_witdrawal_by_id( $withdrawal_id );
 		$withdraw_amount = $withdraw->amount;
-		$currency        = get_option( 'woocommerce_currency' );
 
 		$site_url        = get_bloginfo( 'url' );
 		$site_name       = get_bloginfo( 'name' );
@@ -2907,8 +3242,8 @@ class EmailNotification {
 		$replacable['{testing_email_notice}'] = '';
 		$replacable['{instructor_username}']  = $instructor->display_name;
 		$replacable['{user_name}']            = tutor_utils()->get_user_name( $instructor );
-		$replacable['{total_amount}']         = $total_amount . ' ' . $currency;
-		$replacable['{withdraw_amount}']      = $withdraw_amount . ' ' . $currency;
+		$replacable['{total_amount}']         = tutor_utils()->tutor_price( $total_amount );
+		$replacable['{withdraw_amount}']      = tutor_utils()->tutor_price( $withdraw_amount );
 		$replacable['{withdraw_method}']      = $withdraw_method;
 		$replacable['{withdraw_time}']        = $withdraw_time;
 		$replacable['{site_url}']             = $site_url;
@@ -2925,7 +3260,6 @@ class EmailNotification {
 		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
 
 		$this->send( $instructor->user_email, $subject, $message, $header );
-
 	}
 
 	/**
@@ -2937,19 +3271,26 @@ class EmailNotification {
 	 */
 	public function new_lqa_published( $lqa ) {
 		$lqa_type      = $lqa['lqa_type'];
-		$option_status = tutor_utils()->get_option( 'email_to_students.new_' . $lqa_type . '_published' );
+		$trigger_name  = 'new_' . $lqa_type . '_published';
+		$option_status = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $option_status ) {
+			return;
+		}
+
+		$user_id              = $lqa['student']->ID;
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, self::NOTIFICATION_TYPE, self::TO_STUDENTS, $trigger_name, $user_id );
+		if ( ! $notification_enabled ) {
 			return;
 		}
 
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->email_options['email_to_students'][ 'new_' . $lqa_type . '_published' ];
+		$option_data = $this->email_options['email_to_students'][ $trigger_name ];
 		$header      = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 
 		$replacable['{testing_email_notice}']      = '';
 		$replacable['{student_username}']          = $lqa['student']->display_name;
-		$replacable['{user_name}']                 = tutor_utils()->get_user_name( get_userdata( $lqa['student']->ID ) );
+		$replacable['{user_name}']                 = tutor_utils()->get_user_name( get_userdata( $user_id ) );
 		$replacable[ '{' . $lqa_type . '_title}' ] = $lqa['lqa']->post_title;
 		$replacable['{course_title}']              = $lqa['course']->post_title;
 		$replacable['{site_url}']                  = $site_url;
@@ -2959,7 +3300,9 @@ class EmailNotification {
 		$replacable['{footer_text}']               = $this->get_replaced_text( $option_data['footer_text'], array_keys( $replacable ), array_values( $replacable ) );
 		$replacable['{email_message}']             = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
 
-		$subject   = sprintf( __( 'New %s Published', 'tutor-pro' ), __( $lqa_type, 'tutor-pro' ) ); //phpcs:ignore
+		$subject = sprintf(
+			// translators: %s: Lesson, Quiz, Assignment.
+			__( 'New %s Published', 'tutor-pro' ), __( $lqa_type, 'tutor-pro' ) ); //phpcs:ignore
 		$hook_name = 'new_' . strtolower( $lqa_type ) . '_published';
 
 		ob_start();
@@ -3067,7 +3410,7 @@ class EmailNotification {
 		if ( $is_enable_reject_mail && tutor_utils()->is_instructor( $course->post_author ) && 'trash' === $course_status ) {
 			$site_url        = get_bloginfo( 'url' );
 			$site_name       = get_bloginfo( 'name' );
-			$option_data     = $this->get_option_data( self::TO_TEACHERS, 'a_instructor_course_rejected' );
+			$option_data     = $this->get_option_data( self::TO_TEACHERS, 'a_instructor_course_rejected', $course->post_author );
 			$header          = 'Content-Type: ' . $this->get_content_type() . "\r\n";
 			$header          = apply_filters( 'to_instructor_course_update_subject', $header, $course->ID );
 			$instructor_name = tutor_utils()->get_user_name( get_userdata( $course->post_author ) );
@@ -3077,7 +3420,7 @@ class EmailNotification {
 
 			$replacable['{testing_email_notice}'] = '';
 			$replacable['{course_name}']          = $course_title;
-			$replacable['{site_url}']             = $site_url;
+			$replacable['{button_link}']          = $option_data['button_link'] ?? '';
 			$replacable['{site_name}']            = $site_name;
 			$replacable['{user_name}']            = $instructor_name;
 			$replacable['{course_url}']           = $course_url;
@@ -3125,7 +3468,7 @@ class EmailNotification {
 			$this->tutor_load_email_template( 'to_instructor_course_accepted' );
 			$email_tpl = apply_filters( 'to_instructor_course_accepted', ob_get_clean() );
 			$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
-			$this->send( $author_email, $subject, $message, $header, array(), true );
+			$this->send( $author_email, $subject, $message, $header );
 
 			update_post_meta( $post_id, 'tutor_instructor_course_publish', true );
 		}
@@ -3209,4 +3552,78 @@ class EmailNotification {
 		}
 	}
 
+	/**
+	 * Send retrieve password email.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array   $defaults {
+	 *     The default notification email arguments. Used to build wp_mail().
+	 *
+	 *     @type string $to      The intended recipient - user email address.
+	 *     @type string $subject The subject of the email.
+	 *     @type string $message The body of the email.
+	 *     @type string $headers The headers of the email.
+	 * }
+	 * @param string  $key        The activation key.
+	 * @param string  $user_login The username for the user.
+	 * @param WP_User $user_data  WP_User object.
+	 *
+	 * @return array
+	 */
+	public function retrieve_password( $defaults, $key, $user_login, $user_data ) {
+
+		$option_data = $this->default_mail_data['email_to_all']['forgot_password'];
+		if ( ! empty( $this->email_options['email_to_all']['forgot_password'] ) ) {
+			$option_data = $this->email_options['email_to_all']['forgot_password'];
+		}
+
+		$site_url  = get_bloginfo( 'url' );
+		$site_name = get_bloginfo( 'name' );
+		$user_name = tutor_utils()->get_user_name( $user_data );
+
+		$reset_url = add_query_arg(
+			array(
+				'action' => 'rp',
+				'key'    => $key,
+				'login'  => rawurlencode( $user_login ),
+			),
+			network_site_url( 'wp-login.php' )
+		);
+
+		$is_tutor_login_enabled = tutor_utils()->get_option( 'enable_tutor_native_login', false );
+
+		$user = get_user_by( 'login', $user_login );
+		if ( $is_tutor_login_enabled && $user ) {
+			$reset_url = add_query_arg(
+				array(
+					'reset_key' => $key,
+					'user_id'   => $user->ID,
+				),
+				tutor_utils()->tutor_dashboard_url( 'retrieve-password' )
+			);
+		}
+
+		$replacable['{testing_email_notice}'] = '';
+		$replacable['{user_name}']            = $user_name;
+		$replacable['{site_url}']             = $site_url;
+		$replacable['{site_name}']            = $site_name;
+		$replacable['{reset_password_url}']   = $reset_url;
+		$replacable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
+		$replacable['{email_heading}']        = $this->get_replaced_text( $option_data['heading'], array_keys( $replacable ), array_values( $replacable ) );
+		$replacable['{email_message}']        = $this->get_replaced_text( $this->prepare_message( $option_data['message'] ), array_keys( $replacable ), array_values( $replacable ) );
+		$subject                              = $this->get_replaced_text( $option_data['subject'], array_keys( $replacable ), array_values( $replacable ) );
+
+		ob_start();
+		$this->tutor_load_email_template( 'to_all_forgot_password' );
+		$email_tpl = ob_get_clean();
+		$header    = 'Content-Type: ' . $this->get_content_type() . "\r\n";
+		$message   = html_entity_decode( $this->get_message( $email_tpl, array_keys( $replacable ), array_values( $replacable ) ) );
+
+		$defaults['subject'] = $subject;
+		$defaults['message'] = $message;
+		$defaults['headers'] = $header;
+
+		return $defaults;
+	}
 }

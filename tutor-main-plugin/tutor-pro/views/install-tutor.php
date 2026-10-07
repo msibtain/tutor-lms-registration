@@ -22,6 +22,7 @@
 		<div class="tutor-install-notice-wrap notice-warning notice" style="background: #ffffff; padding: 30px 20px; font-size: 20px;">
 			<?php
 			printf(
+				// translators: text.
 				esc_html__(
 					'You must have %1$sTutor LMS%2$s Free version installed and activated on this website in order to use Tutor LMS Pro. You %3$s can activate Tutor LMS%4$s.',
 					'tutor-pro'
@@ -39,6 +40,7 @@
 		<div class="tutor-install-notice-wrap notice-warning notice" style="background: #ffffff; padding: 30px 20px; font-size: 20px;">
 			<?php
 			printf(
+				// translators: text.
 				esc_html__(
 					'You must have %1$sTutor LMS%2$s Free version installed and activated on this website in order to use Tutor LMS Pro. You can %3$sInstall Tutor LMS Now%4$s',
 					'tutor-pro'

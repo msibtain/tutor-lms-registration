@@ -32,7 +32,7 @@ add_filter( 'tutor_addons_lists_config', 'tutor_zoom_config' );
 function tutor_zoom_config( $config ) {
 	$new_config   = array(
 		'name'        => __( 'Zoom Integration', 'tutor-pro' ),
-		'description' => __( 'Connect Tutor LMS with Zoom to host live online classes. Students can attend live classes right from the lesson page.', 'tutor-pro' ),
+		'description' => __( 'Connect Tutor LMS with Zoom to host live online classes.', 'tutor-pro' ),
 	);
 	$basic_config = (array) TUTOR_ZOOM();
 	$new_config   = array_merge( $new_config, $basic_config );
@@ -52,6 +52,7 @@ if ( ! function_exists( 'TUTOR_ZOOM' ) ) {
 		$info = array(
 			'path'         => plugin_dir_path( TUTOR_ZOOM_FILE ),
 			'url'          => plugin_dir_url( TUTOR_ZOOM_FILE ),
+			'templates'    => plugin_dir_path( TUTOR_ZOOM_FILE ) . 'templates/',
 			'basename'     => plugin_basename( TUTOR_ZOOM_FILE ),
 			'version'      => TUTOR_ZOOM_VERSION,
 			'nonce_action' => 'tutor_nonce_action',

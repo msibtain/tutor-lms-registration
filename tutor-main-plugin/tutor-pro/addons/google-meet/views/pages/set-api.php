@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Google event API setup
  *
@@ -26,12 +25,12 @@ $google_meet = new GoogleEvent();
 		if ( ! $google_meet->is_credential_loaded() ) {
 			$view = $plugin_data['views'] . 'pages/api/credential-form.php';
 		} elseif ( ! $google_meet->is_app_permitted() ) {
-		
+
 			$code = Input::get( 'code', '' );
 			if ( '' !== $code ) {
 
 				$save_token = $google_meet->save_token( $code );
-			
+
 				if ( false !== $google_meet->is_app_permitted() ) {
 					$view   = $plugin_data['views'] . 'pages/api/replace-account.php';
 					$params = array(

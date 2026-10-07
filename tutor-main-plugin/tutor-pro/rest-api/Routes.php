@@ -399,7 +399,7 @@ class Routes {
 				),
 				'method'              => WP_REST_Server::READABLE,
 				'callback'            => array( $quiz_attempt_controller, 'read' ),
-				'permission_callback' => array( $quiz_attempt_controller, 'validate_write_request' ),
+				'permission_callback' => array( $quiz_attempt_controller, 'validate_read_request' ),
 			),
 			array(
 				'endpoint'            => 'quiz-attempts',
@@ -413,7 +413,7 @@ class Routes {
 				),
 				'method'              => WP_REST_Server::READABLE,
 				'callback'            => array( $quiz_attempt_controller, 'read_one' ),
-				'permission_callback' => array( $quiz_attempt_controller, 'validate_write_request' ),
+				'permission_callback' => array( $quiz_attempt_controller, 'validate_read_request' ),
 			),
 			// Enrollments.
 			array(
@@ -447,7 +447,7 @@ class Routes {
 				'endpoint'            => 'qna',
 				'method'              => WP_REST_Server::READABLE,
 				'callback'            => array( $q_and_a_controller, 'list' ),
-				'permission_callback' => array( $q_and_a_controller, 'validate_write_request' ),
+				'permission_callback' => array( $q_and_a_controller, 'validate_read_request' ),
 			),
 			array(
 				'endpoint'            => 'qna',
@@ -667,19 +667,19 @@ class Routes {
 		$permissions = array(
 			array(
 				'value' => RestAuth::WRITE,
-				'label' => __( 'Write', 'tutor' ),
+				'label' => __( 'Write', 'tutor-pro' ),
 			),
 			array(
 				'value' => RestAuth::READ_WRITE,
-				'label' => __( 'Read/Write', 'tutor' ),
+				'label' => __( 'Read/Write', 'tutor-pro' ),
 			),
 			array(
 				'value' => RestAuth::DELETE,
-				'label' => __( 'Delete', 'tutor' ),
+				'label' => __( 'Delete', 'tutor-pro' ),
 			),
 			array(
 				'value' => RestAuth::ALL,
-				'label' => __( 'All', 'tutor' ),
+				'label' => __( 'All', 'tutor-pro' ),
 			),
 		);
 

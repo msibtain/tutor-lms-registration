@@ -49,13 +49,6 @@ class Init {
 	/**
 	 * Notifications
 	 *
-	 * @var $notifications
-	 */
-	public $notifications;
-
-	/**
-	 * Notifications
-	 *
 	 * @var $tutor_notifications
 	 */
 	public $tutor_notifications;
@@ -68,11 +61,11 @@ class Init {
 	public $get_all_notifications;
 
 	/**
-	 * Push notification
+	 * Notification dispatcher
 	 *
-	 * @var $push_notification
+	 * @var $notification_dispatcher
 	 */
-	public $push_notifications;
+	public $notification_dispatcher;
 
 	/**
 	 * Constructor
@@ -109,10 +102,9 @@ class Init {
 
 		$this->create_notifications_db_table();
 
-		$this->tutor_notifications   = new Tutor_Notifications();
-		$this->notifications         = new Notifications();
-		$this->get_all_notifications = new Ajax();
-		$this->push_notifications    = new Pusher();
+		$this->tutor_notifications     = new Tutor_Notifications();
+		$this->get_all_notifications   = new Ajax();
+		$this->notification_dispatcher = new Notification_Dispatcher();
 	}
 
 	/**

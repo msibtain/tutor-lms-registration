@@ -203,7 +203,7 @@ class Settings {
 	 * Check 2FA is enabled
 	 *
 	 * @since 2.1.9
-	 * 
+	 *
 	 * @return boolean
 	 */
 	public static function is_2fa_enabled() {
@@ -212,9 +212,9 @@ class Settings {
 
 	/**
 	 * Get active 2FA method
-	 * 
+	 *
 	 * @since 2.1.9
-	 * 
+	 *
 	 * @return string
 	 */
 	public static function get_2fa_method() {
@@ -225,7 +225,7 @@ class Settings {
 	 * Get active 2FA location like login, registration etc
 	 *
 	 * @since 2.1.9
-	 * 
+	 *
 	 * @return string
 	 */
 	public static function get_2fa_location() {
@@ -234,9 +234,9 @@ class Settings {
 
 	/**
 	 * Check spam protection enabled.
-	 * 
+	 *
 	 * @since 2.1.9
-	 * 
+	 *
 	 * @return boolean
 	 */
 	public static function is_spam_protection_enabled() {
@@ -247,7 +247,7 @@ class Settings {
 	 * Get spam protection method
 	 *
 	 * @since 2.1.9
-	 * 
+	 *
 	 * @return string
 	 */
 	public static function get_spam_protection_method() {
@@ -256,7 +256,7 @@ class Settings {
 
 	/**
 	 * Get spam protection location.
-	 * 
+	 *
 	 * @since 2.1.9
 	 *
 	 * @return array

@@ -34,7 +34,7 @@ $default_timezone = Settings::get_settings( 'meeting_timezone' );
 		
 		<div class="tutor-gmi-meeting-time">
 			<div>
-				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="" tutor-disable-past-date></div>
+				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="" data-disable_past_date="1"></div>
 				<div class="tutor-form-wrap">
 					<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-start-time"></span>
 					<input type="text" name="meeting_start_time" class="tutor-form-control tutor-google-meet-timepicker" data-name="meeting_start_time" autocomplete="off" placeholder="HH:MM PM" value="" >
@@ -42,7 +42,7 @@ $default_timezone = Settings::get_settings( 'meeting_timezone' );
 			</div>
 			<span class="tutor-icon-minus-o tutor-icon-minus-o tutor-fs-6"></span>
 			<div>
-				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="" tutor-disable-past-date></div>
+				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="" data-disable_past_date="1"></div>
 				<div class="tutor-form-wrap">
 					<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-end-time"></span>
 					<input type="text" name="meeting_end_time" data-name="meeting_end_time" class="tutor-form-control tutor-google-meet-timepicker" value="" autocomplete="off" placeholder="HH:MM PM">

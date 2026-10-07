@@ -9,6 +9,7 @@
 
 namespace TutorPro\GoogleMeet\Utilities;
 
+use Tutor\Helpers\UrlHelper;
 use TUTOR\Input;
 use TutorPro\GoogleMeet\GoogleMeet;
 
@@ -20,6 +21,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Utility methods
  */
 class Utilities {
+
+	const GOOGLE_MEET_TAB = 'google-meet';
 
 	/**
 	 * Available sub page keys
@@ -61,6 +64,42 @@ class Utilities {
 				'key'   => $key,
 				'title' => $sub_page,
 				'url'   => $url,
+			);
+			array_push( $tab_key_value, $page );
+		}
+
+		return apply_filters(
+			'tutor_pro_google_meet_sub_page_tabs',
+			$tab_key_value
+		);
+	}
+
+	/**
+	 * Tabs for google meet frontend subpage.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $url the base url.
+	 * @param string $active_tab the current active tab.
+	 *
+	 * @return array
+	 */
+	public static function frontend_tabs_key_value( $url = '', $active_tab = '' ) {
+		$sub_pages     = self::sub_pages();
+		$tab_key_value = array();
+
+		foreach ( $sub_pages as $key => $sub_page ) {
+			$page = array(
+				'type'   => 'link',
+				'label'  => $sub_page,
+				'url'    => UrlHelper::add_query_params(
+					$url,
+					array(
+						'nav' => self::GOOGLE_MEET_TAB,
+						'tab' => $key,
+					)
+				),
+				'active' => $key === $active_tab,
 			);
 			array_push( $tab_key_value, $page );
 		}
@@ -200,7 +239,7 @@ class Utilities {
 		ob_start();
 		?>
 			<div>
-				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="" tutor-disable-past-date></div>
+				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="" data-disable_past_date="1"></div>
 				<div class="tutor-form-wrap">
 					<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-start-time"></span>
 					<input type="text" name="meeting_start_time" class="tutor-form-control tutor-google-meet-timepicker" data-name="meeting_start_time" autocomplete="off" placeholder="HH:MM PM" value="" >
@@ -208,7 +247,7 @@ class Utilities {
 			</div>
 			<span class="tutor-icon-minus-o tutor-icon-minus-o tutor-fs-6"></span>
 			<div>
-				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="" tutor-disable-past-date></div>
+				<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="" data-disable_past_date="1"></div>
 				<div class="tutor-form-wrap">
 					<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-end-time"></span>
 					<input type="text" name="meeting_end_time" data-name="meeting_end_time" class="tutor-form-control tutor-google-meet-timepicker" value="" autocomplete="off" placeholder="HH:MM PM">
@@ -228,13 +267,64 @@ class Utilities {
 	public static function not_permitted_sub_pages() {
 		add_filter(
 			'tutor_pro_google_meet_sub_pages',
-			function() {
+			function () {
 				return array(
 					'set-api'  => __( 'Set API', 'tutor-pro' ),
 					'settings' => __( 'Settings', 'tutor-pro' ),
 					'help'     => __( 'Help', 'tutor-pro' ),
 				);
 			}
+		);
+	}
+
+	/**
+	 * Get the popover info card for google meetings.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $meet_link the meeting link.
+	 * @param string $host_email the host email.
+	 *
+	 * @return string
+	 */
+	public static function get_google_meeting_info_card( string $meet_link, string $host_email ): string {
+		$meta_data     = GoogleMeet::meta_data();
+		$template_path = $meta_data['templates'] . 'google-meet-info-popover.php';
+
+		ob_start();
+		tutor_load_template_from_custom_path(
+			$template_path,
+			array(
+				'meet_link'  => $meet_link,
+				'host_email' => $host_email,
+			),
+			false
+		);
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Get allowed tags for meeting info popover.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return array
+	 */
+	public static function allowed_info_popover_tags() {
+		return array(
+			'div'    => array(
+				'class' => true,
+			),
+			'p'      => array(
+				'class' => true,
+			),
+			'button' => array(
+				'type'       => true,
+				'class'      => true,
+				'x-data'     => true,
+				'x-on:click' => true,
+			),
 		);
 	}
 }

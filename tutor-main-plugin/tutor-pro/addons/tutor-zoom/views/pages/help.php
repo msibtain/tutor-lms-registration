@@ -71,7 +71,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 					<div class="tutor-zoom-accordion-body tutor-pt-16" style="display: none;">
 						<div class="tutor-fs-7 tutor-color-secondary">
-							<?php esc_html_e( 'You can notify students about live lessons using Email Notifications and Announcements. Docs for Email Notifications can be found ', 'tutor-pro' ); ?><a href="https://docs.themeum.com/tutor-lms/addons/email-notifications/" target="_blank"><?php esc_html_e( ' here', 'tutor-pro' ); ?></a>.
+							<?php esc_html_e( 'You can notify students about live lessons using Email Notifications and Announcements. Docs for Email Notifications can be found ', 'tutor-pro' ); ?><a href="https://tutorlms.com/docs/tutor-lms-settings-email/" target="_blank"><?php esc_html_e( ' here', 'tutor-pro' ); ?></a>.
 						</div>
 					</div>
 				</div>

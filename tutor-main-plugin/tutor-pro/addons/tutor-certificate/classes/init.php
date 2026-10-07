@@ -50,21 +50,26 @@ class Init {
 
 		new Instructor_Signature();
 
-		add_filter(
-			'tutor_pages',
-			function( array $pages ) {
-				return $pages + array( 'tutor_certificate_page' => __( 'Tutor Certificate', 'tutor' ) );
-			}
+		add_action( 'init', array( $this, 'generate_certificate_pages' ) );
+		add_filter( 'tutor_pages', array( $this, 'filter_tutor_pages' ) );
+	}
+
+	/**
+	 * Filter tutor pages.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array $pages array of pages.
+	 *
+	 * @return array
+	 */
+	public function filter_tutor_pages( array $pages ) {
+		$certificate_pages = array(
+			Certificate::OPTION_CERTIFICATE_PAGE        => __( 'Tutor Certificate', 'tutor-pro' ),
+			Certificate::OPTION_CERTIFICATE_VERIFY_PAGE => __( 'Tutor Certificate Verification', 'tutor-pro' ),
 		);
 
-		add_action(
-			'init',
-			function() {
-				if ( ! wp_doing_ajax() ) {
-					$this->generate_tutor_certificate_page();
-				}
-			}
-		);
+		return $pages + $certificate_pages;
 	}
 
 	/**
@@ -74,17 +79,33 @@ class Init {
 	 *
 	 * @return void
 	 */
-	private function generate_tutor_certificate_page() {
-		$certificate_page_id = (int) tutor_utils()->get_option( 'tutor_certificate_page' );
-		if ( in_array( $certificate_page_id, array( 0, -1 ) ) ) {
+	public function generate_certificate_pages() {
+		if ( wp_doing_ajax() ) {
+			return;
+		}
+
+		$certificate_page_id = (int) tutor_utils()->get_option( Certificate::OPTION_CERTIFICATE_PAGE );
+		if ( in_array( $certificate_page_id, array( 0, -1 ), true ) ) {
 			$post_details = array(
-				'post_title'   => __( 'Tutor Certificate', 'tutor' ),
+				'post_title'   => __( 'Tutor Certificate', 'tutor-pro' ),
 				'post_content' => '',
 				'post_status'  => 'publish',
 				'post_type'    => 'page',
 			);
 			$page_id      = wp_insert_post( $post_details );
-			update_tutor_option( 'tutor_certificate_page', $page_id );
+			update_tutor_option( Certificate::OPTION_CERTIFICATE_PAGE, $page_id );
+		}
+
+		$certificate_verify_page_id = (int) tutor_utils()->get_option( Certificate::OPTION_CERTIFICATE_VERIFY_PAGE );
+		if ( in_array( $certificate_verify_page_id, array( 0, -1 ), true ) ) {
+			$post_details = array(
+				'post_title'   => __( 'Tutor Certificate Verification', 'tutor-pro' ),
+				'post_content' => '',
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+			);
+			$page_id      = wp_insert_post( $post_details );
+			update_tutor_option( Certificate::OPTION_CERTIFICATE_VERIFY_PAGE, $page_id );
 		}
 	}
 
@@ -165,12 +186,21 @@ class Init {
 									'placeholder' => __( 'Enter authorised company name', 'tutor-pro' ),
 								),
 								array(
-									'key'        => 'tutor_certificate_page',
+									'key'        => Certificate::OPTION_CERTIFICATE_PAGE,
 									'type'       => 'select',
-									'label'      => __( 'Certificate Page', 'tutor' ),
+									'label'      => __( 'Certificate Page', 'tutor-pro' ),
 									'default'    => '0',
 									'options'    => $pages,
-									'desc'       => __( 'Choose the page for certificate.', 'tutor' ),
+									'desc'       => __( 'Choose the page for certificate.', 'tutor-pro' ),
+									'searchable' => true,
+								),
+								array(
+									'key'        => Certificate::OPTION_CERTIFICATE_VERIFY_PAGE,
+									'type'       => 'select',
+									'label'      => __( 'Certificate Verify Page', 'tutor-pro' ),
+									'default'    => '0',
+									'options'    => $pages,
+									'desc'       => __( 'Choose the page for certificate verification.', 'tutor-pro' ),
 									'searchable' => true,
 								),
 								array(
@@ -240,7 +270,7 @@ class Init {
 
 		array_splice(
 			$attr['design']['blocks'],
-			3,
+			5,
 			0,
 			array(
 				array(

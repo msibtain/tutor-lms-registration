@@ -10,244 +10,177 @@
  * @version 1.4.3
  */
 
-use TUTOR\Input;
+defined( 'ABSPATH' ) || exit;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-$course_id    = Input::post( 'course_id', '' );
-$student_id   = Input::post( 'student_id', '' );
-$post         = get_post( $course_id );
-$currentPost  = $post;
-$checked_icon = 'tutor-icon-circle-mark';
+use TUTOR\Icon;
+use Tutor\Components\Tooltip;
+use Tutor\Components\SvgIcon;
+use Tutor\Components\Constants\Color;
+use Tutor\Components\Constants\Size;
 
-$completed_lesson = Input::post( 'completed_lesson', 0 );
-$total_lesson     = Input::post( 'total_lesson', 0 );
+$icons = array(
+	'lesson'       => Icon::COURSES,
+	'quiz'         => Icon::QUIZ_2,
+	'assignment'   => Icon::BOOK_2,
+	'zoom_meeting' => Icon::ZOOM,
+	'google_meet'  => Icon::GOOGLE_MEET,
+);
 
-$completed_assignment = Input::post( 'completed_assignment', 0 );
-$total_assignment     = Input::post( 'total_assignment', 0 );
-
-$completed_quiz = Input::post( 'completed_quiz', 0 );
-$total_quiz     = Input::post( 'total_quiz', 0 );
-
-$total_progress = Input::post( 'total_progress', 0 );
+$summary_icon = SvgIcon::make()
+	->name( Icon::INFO_OCTAGON )
+	->size( 16 )
+	->color( Color::SUBDUED )
+	->attr( 'class', '-tutor-mb-2 tutor-ml-4' )
+	->get();
 ?>
-<div class="tutor-analytics-progress-popup">
-	<div class="tutor-fs-4 tutor-fw-medium tutor-color-black tutor-mb-24"><?php echo esc_html( $post->post_title ); ?></div>
-	<div class="tutor-row tutor-align-center">
-		<div class="tutor-col-xl-8 tutor-d-flex tutor-fs-6 tutor-color-muted">
-			<span>
-				<?php esc_html_e( 'Lesson', 'tutor-pro' ); ?>: <?php echo esc_html( $completed_lesson . '/' . $total_lesson ); ?>
-			</span>
-			
-			<span class="tutor-ml-16">
-				<?php esc_html_e( 'Assignment', 'tutor-pro' ); ?>: <?php echo esc_html( $completed_assignment . '/' . $total_assignment ); ?>
-			</span>
-			
-			<span class="tutor-ml-16">
-				<?php esc_html_e( 'Quiz', 'tutor-pro' ); ?>: <?php echo esc_html( $completed_quiz . '/' . $total_quiz ); ?>
+
+<div class="tutor-analytics-course-progress-modal">
+	<div class="tutor-px-7 tutor-sm-px-5 tutor-pt-10 tutor-pb-6 tutor-border-b">
+		<div class="tutor-medium">
+			<span x-text="payload?.courseProgress?.completed_count + '%' ?? '0%';" class="tutor-font-semibold">%</span> 
+			<span class="tutor-text-secondary tutor-font-medium">
+				<?php esc_html_e( 'Completed', 'tutor-pro' ); ?>
 			</span>
 		</div>
+		<div class="tutor-progress-bar tutor-mt-4 tutor-mb-6" data-tutor-animated="">
+			<div class="tutor-progress-bar-fill" 
+				:style="`--tutor-progress-width: ${parseInt(payload?.courseProgress?.completed_count ?? 0)}%`">
+			</div>
+		</div>
+		<!-- Course Info -->
+		<div class="tutor-flex tutor-items-center tutor-gap-5 tutor-sm-gap-4">
+			<div class="tutor-analytics-course-image">
+				<img :src="payload?.courseProgress?.course_image" :alt="payload?.courseProgress?.course?.post_title" loading="lazy" />
+			</div>
+			<div class="tutor-flex tutor-flex-column tutor-gap-1">
+				<div class="tutor-medium tutor-font-medium" x-text="payload?.courseProgress?.course?.post_title"></div>
+				<div class="tutor-flex tutor-items-center tutor-gap-5 tutor-sm-gap-4 tutor-tiny">
+					<div class="tutor-flex tutor-gap-2">
+						<span class="tutor-text-subdued">
+							<?php esc_html_e( 'Lesson', 'tutor-pro' ); ?>:
+						</span>
+						<span x-text="`${payload?.courseProgress?.completed_lessons ?? 0}/${payload?.courseProgress?.total_lessons ?? 0}`"></span>
+					</div>         		
 
-		<div class="tutor-col-xl-4">
-			<div class="course-total-completed course-progress tutor-d-flex tutor-align-center">
-				<div class="tutor-progress-bar" style="--tutor-progress-value:<?php esc_attr( $total_progress . '%;' ); ?>">
-					<div class="tutor-progress-value" area-hidden="true"></div>
-				</div>
-				<div class="tutor-color-black tutor-fs-7 tutor-fw-medium tutor-ml-12 tutor-text-nowrap">
-					<?php echo esc_html( $total_progress ); ?>% <?php esc_html_e( ' Complete', 'tutor-pro' ); ?>
+					<?php if ( tutor_utils()->is_addon_enabled( 'tutor-assignments' ) ) : ?>
+					<div class="tutor-flex tutor-gap-2">
+						<span class="tutor-text-subdued">
+							<?php esc_html_e( 'Assignment', 'tutor-pro' ); ?>:
+						</span>
+						<span x-text="`${payload?.courseProgress?.completed_assignment ?? 0}/${payload?.courseProgress?.total_assignments ?? 0}`"></span>
+					</div>
+					<?php endif; ?>
+
+					<div class="tutor-flex tutor-gap-2">
+						<span class="tutor-text-subdued">
+							<?php esc_html_e( 'Quiz', 'tutor-pro' ); ?>:
+						</span>
+						<span x-text="`${payload?.courseProgress?.completed_quiz ?? 0 }/${payload?.courseProgress?.total_quiz ?? 0}`"></span>
+					</div>
 				</div>
 			</div>
 		</div>
+		<!-- End Of Course Info -->
 	</div>
 
-	<div class="tutor-sidebar-tabs-content">
-		<div id="tutor-lesson-sidebar-tab-content" class="tutor-lesson-sidebar-tab-item">
-			<div class="tutor-accordion tutor-mt-24">
-				<?php
-				$topics = tutor_utils()->get_topics( $course_id );
-				$i      = 0;
-				if ( $topics->have_posts() ) {
-					while ( $topics->have_posts() ) {
-						$topics->the_post();
-						$i++;
-						$topic_id      = get_the_ID();
-						$topic_summery = get_the_content();
-						?>
-
-						<div class="tutor-accordion-item tutor-topics-<?php echo esc_attr( $topic_id ); ?>">
-							<div class="tutor-accordion-item-header <?php echo $topic_summery ? 'has-summery' : ''; ?>">
-								<?php echo esc_html( '0.' . $i ); ?>
-								<?php the_title(); ?>
-							</div>
-
-							<div class="tutor-accordion-item-body" style="display: none;">
-							<div class="tutor-accordion-item-body-content">
-								<?php
-									do_action( 'tutor/lesson_list/before/topic', $topic_id );
-
-									$lessons = tutor_utils()->get_course_contents_by_topic( get_the_ID(), -1 );
-
-								if ( $lessons->have_posts() ) {
-									?>
-
-										<ul class="tutor-course-content-list">
-										<?php
-										foreach ( $lessons->posts as $post ) {
-
-											if ( 'tutor_quiz' === $post->post_type ) {
-												$quiz = $post;
-												?>
-
-													<li class="tutor-course-content-list-item quiz-single-item quiz-single-item-<?php echo esc_attr(  $quiz->ID ); ?> <?php echo esc_attr( ( $currentPost->ID === get_the_ID() ) ? 'active' : '' ); ?>" data-quiz-id="<?php echo esc_attr( $quiz->ID ); ?>">
-														<div class="tutor-d-flex tutor-align-center">
-															<span class="tutor-icon-circle-question-mark tutor-color-muted tutor-mr-16"></span>
-															<span class="tutor-course-content-list-item-title">
-																<a href="<?php echo esc_url( get_permalink( $quiz->ID ) ); ?>" class="sidebar-single-quiz-a" data-quiz-id="<?php echo esc_attr( $quiz->ID ); ?>"> <?php echo esc_attr( $quiz->post_title ); ?> </a>
-															</span>
-														</div>
-														
-														<div>
-															<span class="tutor-fs-7 tutor-color-muted">
-															<?php
-															do_action( 'tutor/lesson_list/right_icon_area', $post );
-
-															$has_attempt = tutor_utils()->has_attempted_quiz( $student_id, $quiz->ID );
-															$time_limit  = tutor_utils()->get_quiz_option( $quiz->ID, 'time_limit.time_value' );
-
-															if ( $has_attempt ) {
-																echo '<input type="checkbox" class="tutor-form-check-input tutor-form-check-circle" disabled="disabled" readonly="readonly" checked="&quot;checked&quot;/">';
-															}
-
-															if ( $time_limit ) {
-																$time_type = tutor_utils()->get_quiz_option( $quiz->ID, 'time_limit.time_type' );
-															}
-															?>
-															</span>
-														</div>
-													</li>
-
-												<?php
-
-											} elseif ( 'tutor_assignments' === $post->post_type ) {
-												/**
-												 * Assignments
-												 *
-												 * @since this block v.1.3.3
-												 */
-												$assignment_submitted = tutor_utils()->get_submitted_assignment_count( $post->ID, $student_id );
-												?>
-												<li class="tutor-course-content-list-item assignments-single-item assignment-single-item-<?php echo esc_attr( $post->ID ); ?> <?php echo esc_attr( ( $currentPost->ID === get_the_ID() ) ? 'active' : '' ); ?>" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>">
-													<div class="tutor-d-flex tutor-align-center">
-														<span class="tutor-icon-clipboard tutor-color-muted tutor-mr-16"></span>
-														<span class="tutor-course-content-list-item-title">
-															<a href="<?php echo esc_url( get_permalink( $post->ID ) ); ?>" class="sidebar-single-assignment-a" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>"> <?php echo esc_attr( $post->post_title ); ?> </a>
-														</span>
-													</div>
-
-													<div>
-														<span class="tutor-fs-7 tutor-color-muted">
-														<?php
-														if ( $assignment_submitted ) {
-															echo '<input type="checkbox" class="tutor-form-check-input tutor-form-check-circle" disabled="disabled" readonly="readonly" checked="&quot;checked&quot;/">';
-														}
-														?>
-														</span>
-													</div>
-												</li>
-
-												<?php
-
-											} elseif ( 'tutor_zoom_meeting' === $post->post_type ) {
-												/**
-												 * Zoom Meeting
-												 *
-												 * @since this block v.1.7.1
-												 */
-
-												?>
-
-												<li class="tutor-course-content-list-item zoom-meeting-single-item zoom-meeting-single-item-<?php echo esc_attr( $post->ID ); ?> <?php echo esc_attr( ( $currentPost->ID === get_the_ID() ) ? 'active' : '' ); ?>>" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>">
-													<div class="tutor-d-flex tutor-align-center">
-														<span class="tutor-icon-brand-zoom tutor-color-muted tutor-mr-16"></span>
-														<span class="tutor-course-content-list-item-title">
-															<a href="<?php echo esc_url( get_permalink( $post->ID ) ); ?>" class="sidebar-single-zoom-meeting-a" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>"> <?php echo esc_attr( $post->post_title ); ?> </a>
-														</span>
-													</div>
-
-													<div>
-														<span class="tutor-fs-7 tutor-color-muted">
-															<?php do_action( 'tutor/lesson_list/right_icon_area', $post ); ?>
-														</span>
-													</div>
-												</li>
-
-												<?php
-
-											} else {
-
-												/**
-												 * Lesson
-												 */
-												$video = tutor_utils()->get_video_info( $post->ID );
-
-												$play_time = false;
-												if ( $video ) {
-													$play_time = $video->playtime;
-												}
-												$is_completed_lesson = tutor_utils()->is_completed_lesson( $post->ID, $student_id );
-												?>
-
-												<li class="tutor-course-content-list-item <?php echo esc_attr( ( $post->ID ) ? 'active' : '' ); ?>" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>">
-													<div class="tutor-d-flex tutor-align-center">
-														<?php
-														$tutor_lesson_type_icon = $play_time ? 'brand-youtube-bold' : 'clipboard-list';
-														?>
-														<span class='tutor-icon-<?php echo esc_attr( $tutor_lesson_type_icon ); ?> tutor-color-muted tutor-mr-16'></span>
-														<span class="tutor-course-content-list-item-title">
-															<a href="<?php echo esc_url( get_permalink( $post->ID ) ); ?>" class="tutor-single-lesson-a" data-assignment-id="<?php echo esc_attr( $post->ID ); ?>"> <?php echo esc_html( $post->post_title ); ?> </a>
-														</span>
-													</div>
-													
-													<div>
-														<?php
-
-														if ( $play_time ) {
-															echo "<span class='tutor-play-duration tutor-mr-20'>" . esc_html( tutor_utils()->get_optimized_duration( $play_time ) ) . '</span>';
-														}
-															do_action( 'tutor/lesson_list/right_icon_area', $post );
-														if ( $is_completed_lesson ) {
-															echo '<input type="checkbox" class="tutor-form-check-input tutor-form-check-circle" disabled="disabled" readonly="readonly" checked="&quot;checked&quot;/">';
-														}
-														?>
-													</div>
-												</li>
-
-
-												<?php
-											}
-										}
-										$lessons->reset_postdata();
-										?>
-									</ul>
-
-									<?php
-
-								}
-								?>
-
-									<?php do_action( 'tutor/lesson_list/after/topic', $topic_id ); ?>
-							</div>
-							</div>
+	<!-- Course Topics -->
+	<div class="tutor-analytics-course-progress-nav">
+		<template x-for="topic in payload?.courseProgress?.topics" :key="topic.id">
+			<div x-data="{ expanded: true }" class="tutor-analytics-course-progress-nav-topic active">
+				<div role="button" @click="expanded = !expanded" class="tutor-analytics-course-progress-nav-header">				
+					<!-- Progress Icon -->
+					<div class="tutor-analytics-course-progress-nav-header-progress">
+						<div x-data="tutorStatics({ 
+							value: topic.completion_percentage,
+							size: 'x-small',
+							type: 'progress',
+							showLabel: false,
+							background: 'var(--tutor-actions-gray-empty)',
+							strokeColor: 'var(--tutor-border-hover)' })"
+							x-show="topic.completion_percentage > 0 && topic.completion_percentage < 100"
+						>
+							<div x-html="render()"></div>
 						</div>
+						<div class="tutor-analytics-course-progress-nav-header-progress-inner" x-show="topic.completion_percentage == 0">
+						</div>
+						<div class="tutor-analytics-course-progress-nav-item" x-show="topic.completion_percentage == 100 ">
+							<a href="#">
+								<?php SvgIcon::make()->name( Icon::COMPLETED_COLORIZE )->size( 20 )->render(); ?>
+							</a>
+						</div>
+					</div>
 
-						<?php
-					}
-					$topics->reset_postdata();
-					wp_reset_postdata();
-				}
-				?>
+					<!-- Completed Icon -->
+					<div class="tutor-analytics-course-progress-nav-item" x-show="topic.completed">
+						<a href="#">
+							<?php SvgIcon::make()->name( Icon::COMPLETED_COLORIZE )->size( 20 )->render(); ?>
+						</a>
+					</div>
+
+					<div class="tutor-analytics-course-progress-nav-header-title">
+						<span class="tutor-font-medium tutor-text-small" x-text="topic.title"></span>
+						<template x-if="topic.summary">
+							<?php
+							Tooltip::make()
+							->content(
+								'<span x-text="topic.summary"></span>',
+								array(
+									'span' => array( esc_attr( 'x-text' ) => true ),
+								)
+							)
+							->placement( Tooltip::PLACEMENT_BOTTOM )
+							->arrow( Tooltip::ARROW_CENTER )
+							->size( Size::LARGE )
+							->trigger_element( $summary_icon )
+							->render();
+							?>
+						</template>
+					</div>
+					<div class="tutor-analytics-course-progress-nav-header-arrow" :class="{ 'is-expanded': expanded }">
+						<?php SvgIcon::make()->name( Icon::CHEVRON_DOWN_2 )->size( 20 )->render(); ?>
+					</div>
+				</div>
+				<div x-show="expanded" x-collapse x-cloak class="tutor-analytics-course-progress-nav-body">
+					<template x-for="topic_item in topic.items">
+						<div class="tutor-analytics-course-progress-nav-item">
+							<!-- Incomplete icon -->
+							<span 
+								:class="topic_item?.icon_class || 'tutor-text-subdued'" 
+								x-show="!topic_item.is_completed"
+							>
+								<span x-data="tutorIcon({ name:topic_item.icon,width: 20, height: 20 })"></span>
+							</span>
+
+							<!-- Completed icon -->
+							<span x-show="topic_item.is_completed">
+								<?php SvgIcon::make()->name( Icon::COMPLETED_COLORIZE )->size( 20 )->render(); ?>
+							</span>
+
+							<!-- Text -->
+							<div class="tutor-flex tutor-items-center tutor-justify-between tutor-gap-5">
+								<div class="tutor-flex tutor-flex-column tutor-justify-center tutor-items-start">							
+									<a :href="topic_item.link"
+										class="tutor-font-medium tutor-text-small tutor-no-underline tutor-text-secondary"
+										x-text="topic_item.title"
+									>										
+									</a>
+
+									<div class="tutor-flex tutor-gap-2">
+										<span class="tutor-text-regular tutor-tiny-2 tutor-text-subdued" x-text="topic_item.label"></span>									
+										<span 
+											class="tutor-text-regular tutor-tiny-2 tutor-text-subdued"
+											x-show="topic_item.video_play_time"
+											x-text="topic_item.video_play_time"
+										>
+										</span>
+									</div>
+								</div>
+							</div>													
+						</div>
+					</template>				
+				</div>
 			</div>
-		</div>
+		</template>
 	</div>
+	<!-- End Of Course Topics -->
 </div>

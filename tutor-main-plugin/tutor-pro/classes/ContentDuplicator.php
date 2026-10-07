@@ -10,6 +10,7 @@
 
 namespace TUTOR_PRO;
 
+use TUTOR_PRO\Traits\QuizMaskDuplicator;
 use Tutor\Helpers\HttpHelper;
 use Tutor\Helpers\QueryHelper;
 use TUTOR\Input;
@@ -27,6 +28,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class ContentDuplicator {
 	use JsonResponse;
+	use QuizMaskDuplicator;
+
+	private const MASK_QUESTION_TYPES = array( 'draw_image', 'pin_image', 'puzzle' );
 
 	/**
 	 * Question table name.
@@ -239,6 +243,7 @@ class ContentDuplicator {
 		$answer_data                 = (array) $ans_row;
 		$answer_data['answer_title'] = $ans_row->answer_title . ( $copy_suffix ? ' (copy)' : '' );
 		$answer_data['is_correct']   = 0;
+		$answer_data                 = $this->duplicate_mask_for_answer_row( $answer_data );
 		unset( $answer_data['answer_id'] );
 
 		$wpdb->insert( $this->answer_table, $answer_data );
@@ -286,6 +291,7 @@ class ContentDuplicator {
 				}
 
 				$answer_data['belongs_question_id'] = $new_question_id;
+				$answer_data                        = $this->duplicate_mask_for_answer_row( $answer_data );
 				unset( $answer_data['answer_id'] );
 
 				$wpdb->insert( $this->answer_table, $answer_data );
@@ -399,4 +405,35 @@ class ContentDuplicator {
 		}
 
 	}
+
+	/**
+	 * Duplicate draw/pin stored mask file for copied answer row.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array $answer_data Answer row data.
+	 *
+	 * @return array
+	 */
+	private function duplicate_mask_for_answer_row( array $answer_data ): array {
+		$question_type = isset( $answer_data['belongs_question_type'] ) ? str_replace( '-', '_', (string) $answer_data['belongs_question_type'] ) : '';
+		if ( ! in_array( $question_type, self::MASK_QUESTION_TYPES, true ) ) {
+			return $answer_data;
+		}
+
+		$mask = isset( $answer_data['answer_two_gap_match'] ) ? self::normalize_quiz_mask_value( (string) $answer_data['answer_two_gap_match'] ) : '';
+		if ( '' === $mask ) {
+			$answer_data['answer_two_gap_match'] = '';
+			return $answer_data;
+		}
+
+		$new_mask = $this->clone_local_quiz_mask_file( $mask, $question_type );
+
+		if ( '' !== $new_mask ) {
+			$answer_data['answer_two_gap_match'] = $new_mask;
+		}
+
+		return $answer_data;
+	}
+
 }

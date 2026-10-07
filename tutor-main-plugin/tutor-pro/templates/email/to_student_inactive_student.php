@@ -14,7 +14,7 @@
 
 <head>
 	<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-	<?php require TUTOR_EMAIL()->path . 'views/email_styles.php'; ?>
+	<?php require TUTOR()->path . 'templates/email/email_styles.php'; ?>
 </head>
 
 <body>
@@ -25,7 +25,7 @@
 			<?php require TUTOR_PRO()->path . 'templates/email/email_header.php'; ?>
 			<div class="tutor-email-content">
 
-				<div class="tutor-mr-160">
+				<div>
 					<h6 data-source="email-heading" class="tutor-email-heading">{email_heading}</h6>
 				</div>
 				<br>

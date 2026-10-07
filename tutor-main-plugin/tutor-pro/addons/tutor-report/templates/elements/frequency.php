@@ -8,6 +8,8 @@
  * @since 2.0.0
  */
 
+defined( 'ABSPATH' ) || exit;
+
 use TUTOR\Input;
 
 $time_period = Input::get( 'period', '' );

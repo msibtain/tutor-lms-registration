@@ -31,10 +31,10 @@ $event_details = json_decode( $event_details );
 
 			<div class="tutor-course-content-top-right-action">
 				<a href="javascript:;" class="tutor-iconic-btn" data-tutor-modal-target="tutor-google-meet-lesson-update-modal-<?php echo esc_attr( $event->ID ); ?>">
-					<span class="tutor-icon-edit" area-hidden="true"></span>
+					<span class="tutor-icon-edit" aria-hidden="true"></span>
 				</a>
 				<a href="javascript:;" class="tutor-iconic-btn tutor-google-meet-list-delete" data-event-id="<?php echo esc_attr( $event_details->id ); ?>" data-meeting-post-id="<?php echo esc_attr( $event->ID ); ?>" data-item-reference="<?php echo esc_attr( 'tutor-google-meet-lesson-' . $event->ID ); ?>" data-tutor-modal-target="tutor-common-confirmation-modal">
-					<span class="tutor-icon-trash-can-line" area-hidden="true"></span>
+					<span class="tutor-icon-trash-can-line" aria-hidden="true"></span>
 				</a>
 			</div>
 		</div>

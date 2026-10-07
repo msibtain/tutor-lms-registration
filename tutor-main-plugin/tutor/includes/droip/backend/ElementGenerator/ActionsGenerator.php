@@ -137,17 +137,19 @@ trait ActionsGenerator
 				}
 
 			case 'start_learning_btn': {
-					if (! $entry_box_button_logic->show_start_learning_btn) {
-						return '';
-					}
-					$is_course_completed = tutor_utils()->is_completed_course($course_id, get_current_user_id());
-					if ($is_course_completed) {
-						return '';
-					}
-					$lession_url       = tutor_utils()->get_course_first_lesson($course_id);
-					$extra_attributes .= " data-lession_url=$lession_url";
-					return $this->generate_child_element_with_parent_droip_data($extra_attributes);
+				if (!$entry_box_button_logic->show_start_learning_btn) {
+					return '';
 				}
+				$is_course_completed = tutor_utils()->is_completed_course($course_id, get_current_user_id());
+				if ($is_course_completed) {
+					return '';
+				}
+				$lession_url = tutor_utils()->get_course_first_lesson($course_id);
+
+				$is_public_course = get_post_meta($course_id, '_tutor_is_public_course', true);
+				$extra_attributes .= " data-lession_url=$lession_url data-course_is_public=$is_public_course";
+				return $this->generate_child_element_with_parent_droip_data($extra_attributes);
+			}
 
 			case 'continue_learning_btn': {
 					if (! $entry_box_button_logic->show_continue_learning_btn) {

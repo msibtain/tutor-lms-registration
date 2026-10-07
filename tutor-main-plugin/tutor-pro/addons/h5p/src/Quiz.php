@@ -14,6 +14,9 @@ namespace TutorPro\H5P;
 use Tutor\Cache\TutorCache;
 use Tutor\Helpers\QueryHelper;
 use TUTOR\Input;
+use Tutor\Models\QuizModel;
+use Tutor\Options_V2;
+use TUTOR\Quiz as TutorQuiz;
 use TUTOR\Tutor_Base;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -27,6 +30,8 @@ class Quiz extends Tutor_Base {
 
 	const TUTOR_H5P_QUIZ_STATEMENT_LIST  = 'tutor-h5p-quiz-statements';
 	const TUTOR_H5P_QUIZ_STATEMENT_COUNT = 'tutor-h5p-quiz-statement-count';
+
+	const QUIZ_STATEMENT_TABLE = 'tutor_h5p_quiz_statement';
 
 
 	/**
@@ -51,7 +56,453 @@ class Quiz extends Tutor_Base {
 
 		add_action( 'wp_ajax_view_h5p_quiz_result', array( $this, 'view_h5p_quiz_result' ) );
 
+		add_action( 'tutor_before_delete_quiz_content', array( $this, 'delete_h5p_quiz_statements_by_id' ), 10, 2 );
+
+		add_action( 'tutor_quiz_attempt_details_loop_after', array( $this, 'quiz_attempt_answer_modal' ) );
+
 		add_filter( 'tutor_filter_attempt_answer_column', array( $this, 'filter_columns' ), 10, 2 );
+		add_filter( 'tutor_filter_update_before_question_mark', array( $this, 'filter_total_marks' ), 10, 4 );
+		add_filter( 'tutor_filter_quiz_total_marks', array( $this, 'filter_total_quiz_marks' ), 10, 5 );
+		add_filter( 'tutor_filter_quiz_answer_data', array( $this, 'filter_quiz_answer_data' ), 10, 5 );
+		add_action( 'tutor_require_question_answer_file', array( $this, 'require_file' ), 10, 3 );
+		add_action( 'tutor_quiz_attempt_after_result_column', array( $this, 'show_question_answer' ), 10, 3 );
+		add_action( 'tutor_filter_quiz_question_description', array( $this, 'filter_h5p_question_description' ), 12, 2 );
+		add_filter( 'tutor_question_type_icon', array( $this, 'add_h5p_question_type_icon' ), 10, 2 );
+		add_filter( 'tutor_filter_quiz_question_template', array( $this, 'filter_quiz_question_template' ), 10, 2 );
+		add_action( 'tutor_review_answer_after_question_template', array( $this, 'add_h5p_question_answer_template' ), 10, 3 );
+
+		add_action( 'tutor_quiz_question_after_answers', array( $this, 'register_h5p_question_input_field' ), 10, 3 );
+		add_filter( 'tutor_quiz_review_mark_as', array( $this, 'update_h5p_quiz_answer_review_status' ), 10, 4 );
+	}
+
+	/**
+	 * Update H5P attempt status based on instructor review.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $mark_as the status to mark the answer as, either 'correct' or 'incorrect'.
+	 * @param int    $attempt_answer_id the ID of the attempt answer being reviewed.
+	 * @param int    $attempt_id the ID of the quiz attempt.
+	 * @param object $question the question object.
+	 *
+	 * @return string
+	 */
+	public function update_h5p_quiz_answer_review_status( $mark_as, $attempt_answer_id, $attempt_id, $question ) {
+		if ( 'h5p' !== $question->question_type ) {
+			return $mark_as;
+		}
+
+		$attempt        = tutor_utils()->get_attempt( $attempt_id );
+		$attempt_answer = TutorQuiz::get_attempt_answer( $attempt_answer_id );
+		$user_id        = $attempt->user_id ?? 0;
+		$previous_ans   = $attempt_answer->is_correct;
+
+		if ( 'correct' === $mark_as ) {
+			$attempt_update_data = array();
+			$answer_update_data  = array(
+				'achieved_mark' => $attempt_answer->question_mark,
+				'is_correct'    => 1,
+			);
+
+			QueryHelper::update( 'tutor_quiz_attempt_answers', $answer_update_data, array( 'attempt_answer_id' => $attempt_answer_id ) );
+
+			$marks = QueryHelper::query(
+				'tutor_quiz_attempt_answers',
+				array(
+					'select' => 'SUM(achieved_mark) as earned_marks',
+					'where'  => array( 'quiz_attempt_id' => $attempt_id ),
+				)
+			);
+
+			$earned_marks = (float) ( $marks[0]->earned_marks ?? 0 );
+
+			if ( 0 == $previous_ans || null == $previous_ans ) {
+				$attempt_update_data = array(
+					'earned_marks'         => $earned_marks,
+					'is_manually_reviewed' => 1,
+					'manually_reviewed_at' => date( 'Y-m-d H:i:s', tutor_time() ), //phpcs:ignore
+				);
+			}
+
+			if ( ! empty( $attempt_update_data ) ) {
+				QueryHelper::update( 'tutor_quiz_attempts', $attempt_update_data, array( 'attempt_id' => $attempt_id ) );
+			}
+		} elseif ( 'incorrect' === $mark_as ) {
+			$attempt_update_data = array();
+			$answer_update_data  = array(
+				'is_correct' => 0,
+			);
+
+			$attempt_result = Utils::get_h5p_quiz_result( $question->question_id, $user_id, $attempt_id );
+
+			$raw_score = (int) $attempt_result[0]->raw_score ?? 0;
+			$max_score = (int) $attempt_result[0]->max_score ?? 0;
+
+			if ( $raw_score === $max_score ) {
+				$answer_update_data['achieved_mark'] = 0;
+			} else {
+				$answer_update_data['achieved_mark'] = (float) $attempt_result[0]->raw_score ?? 0;
+			}
+
+			QueryHelper::update( 'tutor_quiz_attempt_answers', $answer_update_data, array( 'attempt_answer_id' => $attempt_answer_id ) );
+
+			$marks = QueryHelper::query(
+				'tutor_quiz_attempt_answers',
+				array(
+					'select' => 'SUM(achieved_mark) as earned_marks',
+					'where'  => array( 'quiz_attempt_id' => $attempt_id ),
+				)
+			);
+
+			$earned_marks = (float) ( $marks[0]->earned_marks ?? 0 );
+
+			if ( 1 == $previous_ans ) {
+				$attempt_update_data = array(
+					'earned_marks'         => $earned_marks,
+					'is_manually_reviewed' => 1,
+					'manually_reviewed_at' => date( 'Y-m-d H:i:s', tutor_time() ), //phpcs:ignore
+				);
+			}
+
+			if ( ! empty( $attempt_update_data ) ) {
+				QueryHelper::update( 'tutor_quiz_attempts', $attempt_update_data, array( 'attempt_id' => $attempt_id ) );
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Add H5P answers for quiz attempt details page.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param \stdClass $question the question object.
+	 * @param int       $index the question index in the quiz.
+	 * @param bool      $is_instructor_review whether the review is being done by an instructor.
+	 *
+	 * @return void
+	 */
+	public function add_h5p_question_answer_template( $question, $index, $is_instructor_review ) {
+		if ( 'h5p' !== $question->question_type ) {
+			return;
+		}
+
+		$attempt_result = Utils::get_h5p_quiz_results( $question->question_id, $question->user_id, $question->quiz_attempt_id, $question->quiz_id, $question->question_description );
+
+		$result_id = 0;
+
+		if ( tutor_utils()->count( $attempt_result ) ) {
+			$result_id = $attempt_result[0]->result_id;
+		}
+
+		$statement = QueryHelper::get_row( self::QUIZ_STATEMENT_TABLE, array( 'quiz_result_id' => $result_id ), 'quiz_result_id' );
+
+		$choices                  = maybe_unserialize( $statement->activity_choices );
+		$h5p_targets              = maybe_unserialize( $statement->activity_target );
+		$correct_response_pattern = is_array( maybe_unserialize( $statement->activity_correct_response_pattern ) ) ? maybe_unserialize( $statement->activity_correct_response_pattern )[0] : null;
+		$response_results         = isset( $correct_response_pattern ) ? Results::get_h5p_statement_result_response( $statement, $choices, $correct_response_pattern, $h5p_targets ) : Results::get_h5p_statement_result_response( $statement, $choices, null, $h5p_targets );
+		$template_path            = $response_results['template_path'] ?? '';
+		$question_type            = $response_results['question_type'] ?? 'default';
+		unset( $response_results['template_path'] );
+		unset( $response_results['question_type'] );
+		tutor_load_template_from_custom_path(
+			Utils::addon_config()->views . 'attempt-details/questions.php',
+			array(
+				'question'             => $question,
+				'index'                => $index,
+				'response_results'     => $response_results,
+				'statement'            => $statement,
+				'is_instructor_review' => $is_instructor_review,
+				'review_field_name'    => "review_statuses[{$question->question_id}]",
+				'template_path'        => $template_path,
+				'question_type'        => $question_type ?? 'default',
+			),
+			false
+		);
+
+		wp_enqueue_style( 'tutor-quiz-attempt-details', Utils::addon_config()->assets . 'css/quiz-question.css', array(), filemtime( Utils::addon_config()->path . 'assets/css/quiz-question.css' ) );
+	}
+
+	/**
+	 * Register H5p question input field.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param \WP_Post  $quiz the quiz post object.
+	 * @param array     $quiz_settings the quiz settings.
+	 * @param \stdClass $question the question object.
+	 *
+	 * @return void
+	 */
+	public function register_h5p_question_input_field( $quiz, $quiz_settings, $question ) {
+		global $tutor_is_started_quiz;
+
+		if ( tutor_utils()->is_legacy_learning_mode() ) {
+			return;
+		}
+
+		if ( ! isset( $quiz_settings['quiz_type'] ) || 'tutor_h5p_quiz' !== $quiz_settings['quiz_type'] ) {
+			return;
+		}
+
+		$attempt_id        = (int) ( $tutor_is_started_quiz->attempt_id ?? 0 );
+		$h5p_quiz          = $quiz;
+		$h5p_quiz_settings = $quiz_settings;
+		$h5p_questions     = $question;
+		$field_name        = sprintf( 'attempt[%d][quiz_question][%d]', $attempt_id, $question->question_id );
+		$register_attr     = "register('{$field_name}')";
+		?>
+		<input
+			class="tutor-hidden"
+			type="radio"
+			name="<?php echo esc_attr( $field_name ); ?>"
+			value="<?php echo esc_attr( '' ); ?>"
+			x-bind="<?php echo esc_attr( $register_attr ); ?>"
+		>
+		<?php
+	}
+
+	/**
+	 * Filter quiz question template.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $template_path the template path.
+	 * @param string $question_type the question type.
+	 *
+	 * @return string
+	 */
+	public function filter_quiz_question_template( $template_path, $question_type ) {
+		if ( 'h5p' === $question_type ) {
+			$template_path = '';
+		}
+
+		return $template_path;
+	}
+
+
+	/**
+	 * Add h5p quiz attempt answer icon after tutor quiz attempt.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param string $content the answer attempt icon content.
+	 * @param object $answer the answer object.
+	 *
+	 * @return string
+	 */
+	public function add_h5p_question_type_icon( $content, $answer ) {
+		if ( 'h5p' === $answer->question_type ) {
+			$content = '<img alt="h5p" style="width: 32px; height: 32px;" src="' . esc_url( Utils::addon_config()->url . 'assets/images/thumbnail.svg' ) . '"/>';
+		}
+		return $content;
+	}
+
+
+	/**
+	 * Filter h5p quiz question description
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param string $description the question description.
+	 *
+	 * @return string
+	 */
+	public function filter_h5p_question_description( $description ) {
+		$content = Utils::addon_config()->h5p_plugin->get_content( $description );
+		if ( ! is_array( $content ) ) {
+			return $description;
+		}
+		$h5p_short_code = '[h5p id=' . $description . ']';
+		return $h5p_short_code;
+	}
+
+	/**
+	 * Inset quiz attempt answer modal for h5p quiz.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @return void
+	 */
+	public function quiz_attempt_answer_modal() {
+		ob_start();
+		?>
+		<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-quiz-result-modal">
+			<div class="tutor-modal-overlay"></div>
+			<div class="tutor-modal-window">
+					<div class="tutor-modal-content">
+						<div class="tutor-modal-header">
+							<div class="tutor-modal-title">
+							<?php esc_html_e( 'H5P Question Answer', 'tutor-pro' ); ?>
+						</div>
+						<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
+							<span class="tutor-icon-times" aria-hidden="true"></span>
+						</button>
+					</div>
+					<div class="tutor-modal-body tutor-modal-container"></div>
+				</div>
+			</div>
+		</div>
+		<?php
+		$modal_content = ob_get_clean();
+
+		echo $modal_content;
+	}
+
+	/**
+	 * Show result column for h5p quiz attempt.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param object $answer the quiz answer attempt object.
+	 * @param string $answer_status the quiz answer status.
+	 *
+	 * @return void
+	 */
+	public function show_question_answer( object $answer, string $answer_status ) {
+		$attempt_results     = Utils::get_h5p_quiz_results( $answer->question_id, $answer->user_id, $answer->quiz_attempt_id, $answer->quiz_id, $answer->question_description );
+		$has_attempt_results = is_array( $attempt_results ) && count( $attempt_results );
+		$has_response        = true;
+		if ( $has_attempt_results ) {
+			$score = $attempt_results[0]->raw_score . '/' . $attempt_results[0]->max_score;
+
+			if ( is_array( $attempt_results ) && 1 === count( $attempt_results ) ) {
+				if ( is_null( $attempt_results[0]->response ) ) {
+					$has_response = false;
+				}
+			}
+			if ( $has_response ) {
+				?>
+				<a class=" tutor-btn tutor-btn-outline-primary tutor-btn-sm open-tutor-h5p-quiz-result-modal-btn" data-quiz-id="<?php echo esc_attr( $answer->quiz_id ); ?>" 
+					data-question-id="<?php echo esc_attr( $answer->question_id ); ?>" 
+					data-user-id="<?php echo esc_attr( $answer->user_id ); ?>"
+					data-attempt-id="<?php echo esc_attr( $answer->quiz_attempt_id ); ?>"
+					data-content-id="<?php echo esc_attr( $answer->question_description ); ?>"
+				>
+					<?php esc_html_e( 'View', 'tutor-pro' ); ?>
+				</a>
+				<?php
+			} else {
+				?>
+					<span class="<?php echo $attempt_results[0]->max_score === $attempt_results[0]->raw_score ? 'tutor-color-success' : 'tutor-color-danger'; ?> tutor-fw-normal"><?php echo esc_html( $score ); ?></span>
+				<?php
+			}
+		}
+	}
+
+	/**
+	 * Add question answer section for h5p quiz.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param string $question_type the question type.
+	 * @param object $is_started_quiz the quiz started object.
+	 * @param object $question the question object.
+	 *
+	 * @return void
+	 */
+	public function require_file( string $question_type, object $is_started_quiz, object $question ) {
+		if ( 'h5p' === $question_type ) {
+			?>
+			<div id="quiz-matching-ans-area" hidden class="quiz-question-ans-choice-area tutor-mt-40 question-type-<?php echo esc_attr( $question_type ); ?>">
+				<input class="" name="<?php echo 'attempt[' . esc_attr( $is_started_quiz->attempt_id ) . '][quiz_question][' . esc_attr( $question->question_id ) . '][]'; ?>" />
+			</div>
+			<?php
+		}
+	}
+
+	/**
+	 * Filter total marks for the entire h5p quiz.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param string  $total_question_marks the total question marks to add.
+	 * @param array   $question_ids the question id array.
+	 * @param integer $user_id the user id.
+	 * @param integer $attempt_id the attempt id.
+	 *
+	 * @return integer
+	 */
+	public function filter_total_marks( string $total_question_marks, array $question_ids, int $user_id, int $attempt_id ) {
+		$count_answered_h5p_question = 0;
+		$has_h5p_question            = false;
+
+		foreach ( $question_ids as $question_id ) {
+			$question      = QuizModel::get_quiz_question_by_id( $question_id );
+			$question_type = $question->question_type;
+
+			if ( 'h5p' === $question_type ) {
+				$attempt_result = \TutorPro\H5P\Utils::get_h5p_quiz_result( $question_id, $user_id, $attempt_id );
+				if ( is_array( $attempt_result ) && count( $attempt_result ) ) {
+					$h5p_attempt_answer    = $attempt_result[0];
+					$total_question_marks += $h5p_attempt_answer->max_score;
+					++$count_answered_h5p_question;
+				}
+				$has_h5p_question = true;
+			}
+		}
+
+		if ( $count_answered_h5p_question < count( $question_ids ) && $has_h5p_question ) {
+			$total_question_marks = 0;
+			$this->delete_h5p_quiz_result_by_attempt_id( $attempt_id );
+		}
+
+		return $total_question_marks;
+	}
+
+
+	/**
+	 * Filter quiz mark for individual h5p quiz.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param string  $total_marks the total marks to update.
+	 * @param integer $question_id the question id.
+	 * @param string  $question_type the question type.
+	 * @param integer $user_id the user id.
+	 * @param integer $attempt_id the attempt id.
+	 *
+	 * @return integer
+	 */
+	public function filter_total_quiz_marks( string $total_marks, int $question_id, string $question_type, int $user_id, int $attempt_id ) {
+		if ( 'h5p' === $question_type ) {
+			$attempt_result = Utils::get_h5p_quiz_result( $question_id, $user_id, $attempt_id );
+			// Set the h5p question answer to tutor quiz attempt result.
+			if ( is_array( $attempt_result ) && count( $attempt_result ) ) {
+				$h5p_question_answer = $attempt_result[0];
+				$total_marks        += $h5p_question_answer->raw_score;
+			}
+		}
+		return $total_marks;
+	}
+
+	/**
+	 * Filter h5p quiz attempt answer data.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param array   $answers_data the quiz attempt answers array.
+	 * @param integer $question_id the question id.
+	 * @param string  $question_type the question type.
+	 * @param integer $user_id the user id.
+	 * @param integer $attempt_id the attempt id.
+	 *
+	 * @return array
+	 */
+	public function filter_quiz_answer_data( array $answers_data, int $question_id, string $question_type, int $user_id, int $attempt_id ) {
+		if ( 'h5p' === $question_type ) {
+			$attempt_result = Utils::get_h5p_quiz_result( $question_id, $user_id, $attempt_id );
+			// Set the h5p question answer to tutor quiz attempt result.
+			if ( is_array( $attempt_result ) && count( $attempt_result ) ) {
+				$h5p_question_answer           = $attempt_result[0];
+				$answers_data['question_mark'] = $h5p_question_answer->max_score;
+				$answers_data['achieved_mark'] = $h5p_question_answer->raw_score;
+				$answers_data['is_correct']    = $h5p_question_answer->max_score === $h5p_question_answer->raw_score;
+			}
+		}
+
+		return $answers_data;
 	}
 
 	/**
@@ -61,6 +512,7 @@ class Quiz extends Tutor_Base {
 	 *
 	 * @param array $columns the columns to filter.
 	 * @param array $answers the tutor quiz question answers array.
+	 *
 	 * @return array
 	 */
 	public function filter_columns( $columns, $answers ) {
@@ -80,9 +532,8 @@ class Quiz extends Tutor_Base {
 		if ( $is_h5p ) {
 			$columns = array_filter(
 				$columns,
-				function ( $column ) {
-					return ! in_array( $column, array( 'Given Answer', 'Correct Answer' ), true );
-				}
+				fn( $key ) => ! in_array( $key, array( 'given_answer', 'correct_answer' ), true ),
+				ARRAY_FILTER_USE_KEY
 			);
 		}
 
@@ -152,6 +603,8 @@ class Quiz extends Tutor_Base {
 	 * @param string $order the sorting order.
 	 * @param string $search the search value.
 	 * @param string $date the date value to search for.
+	 * @param string $filter the main filter for querying.
+	 *
 	 * @return array
 	 */
 	public static function get_h5p_quiz_statements( $limit = '', $offset = '', $order = 'DESC', $search = '', $date = '', $filter = '' ) {
@@ -251,6 +704,7 @@ class Quiz extends Tutor_Base {
 	 * @param int    $attempt_id the attempt id.
 	 * @param int    $question_id the question id.
 	 * @param int    $content_id the content id.
+	 *
 	 * @return string|int
 	 */
 	private function save_h5p_quiz_statement_results( $result_statement, $quiz_id, $attempt_id, $question_id, $content_id ) {
@@ -473,7 +927,7 @@ class Quiz extends Tutor_Base {
 			}
 		}
 
-		wp_send_json_success( array( 'required_answers' => json_encode( $required_answers ) ) );
+		wp_send_json_success( array( 'required_answers' => wp_json_encode( $required_answers ) ) );
 	}
 
 	/**
@@ -481,10 +935,11 @@ class Quiz extends Tutor_Base {
 	 *
 	 * @since 3.0.0
 	 *
-	 * @param array $attempt_ids the list of attempt ids.
+	 * @param string $attempt_ids the list of attempt ids.
+	 *
 	 * @return void
 	 */
-	public function delete_h5p_quiz_result_by_attempt_id( $attempt_ids ) {
+	public function delete_h5p_quiz_result_by_attempt_id( string $attempt_ids ) {
 		global $wpdb;
 		if ( isset( $attempt_ids ) ) {
 			//phpcs:disable
@@ -499,10 +954,11 @@ class Quiz extends Tutor_Base {
 	 * @since 3.0.0
 	 *
 	 * @param int $quiz_id the quiz id.
+	 *
 	 * @return void
 	 */
 	public function delete_h5p_quiz_info_all( $quiz_id ) {
-		Utils::delete_h5p_quiz_statements_by_id( $quiz_id );
+		$this->delete_h5p_quiz_statements_by_id( $quiz_id );
 	}
 
 	/**
@@ -511,10 +967,51 @@ class Quiz extends Tutor_Base {
 	 * @since 3.0.0
 	 *
 	 * @param array $question_ids the list of question ids.
+	 *
 	 * @return void
 	 */
 	public function delete_h5p_question_info_all( $question_ids ) {
-		Utils::delete_h5p_quiz_statements_by_id( 0, $question_ids );
+		$this->delete_h5p_quiz_statements_by_id( 0, $question_ids );
+	}
+
+	/**
+	 * Delete quiz statement by quiz id or question id.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param integer $quiz_id the quiz id.
+	 * @param array   $question_ids the array of question ids.
+	 *
+	 * @return void
+	 */
+	public function delete_h5p_quiz_statements_by_id( $quiz_id = 0, $question_ids = null ) {
+		global $wpdb;
+
+		$quiz_id      = Input::sanitize( $quiz_id, 0, Input::TYPE_INT );
+		$question_ids = is_array( $question_ids ) ? array_filter( $question_ids, 'is_numeric' ) : null;
+
+		$where_clause = '';
+
+		if ( 0 !== $quiz_id ) {
+			$where_clause = " AND quiz_id IN ({$quiz_id})";
+		}
+
+		if ( is_array( $question_ids ) && count( $question_ids ) ) {
+			$question_ids = QueryHelper::prepare_in_clause( $question_ids );
+			$where_clause = " AND question_id IN ({$question_ids})";
+		}
+
+		$delete_statements = $wpdb->query(
+			//phpcs:disable
+			"DELETE FROM {$wpdb->prefix}tutor_h5p_quiz_statement WHERE 1=1 {$where_clause}"
+			//phpcs:enable
+		);
+
+		$delete_results = $wpdb->query(
+			//phpcs:disable
+			"DELETE FROM {$wpdb->prefix}tutor_h5p_quiz_result WHERE 1=1 {$where_clause}"
+			//phpcs:enable
+		);
 	}
 
 	/**

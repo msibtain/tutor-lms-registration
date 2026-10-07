@@ -236,18 +236,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 		}
 		?>
 	</div>
-	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-statement-result-modal">
+	<div class="tutor-modal tutor-modal-scrollable<?php echo is_admin() ? ' tutor-admin-design-init' : ''; ?> h5p-statement-result-modal" role="dialog" aria-modal="true" aria-labelledby="h5p-statement-result-title" aria-hidden="true">
 		<div class="tutor-modal-overlay"></div>
 		<div class="tutor-modal-window">
 				<div class="tutor-modal-content">
 					<div class="tutor-modal-header">
-						<div class="tutor-modal-title">
-				<?php esc_html_e( 'H5P Lesson Result', 'tutor' ); ?>
+						<div id="h5p-statement-result-title" class="tutor-modal-title">
+							<?php esc_html_e( 'H5P Lesson Result', 'tutor-pro' ); ?>
+						</div>
+						<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+							<span class="tutor-icon-times" aria-hidden="true"></span>
+						</button>
 					</div>
-					<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close>
-						<span class="tutor-icon-times" area-hidden="true"></span>
-					</button>
-				</div>
 				<div class="tutor-modal-body tutor-modal-container"></div>
 			</div>
 		</div>

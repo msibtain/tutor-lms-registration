@@ -144,7 +144,7 @@ class BuddyPressGroupSettings extends \BP_Group_Extension {
 	 * @return void
 	 */
 	public function settings_screen_save( $group_id = null ) {
-		$tutor_bp_course_activities = Input::post( 'tutor_bp_group_activities', '', Input::TYPE_KSES_POST );
+		$tutor_bp_course_activities = isset( $_POST['tutor_bp_group_activities'] ) ? Input::sanitize_array( $_POST['tutor_bp_group_activities'] ) : array();
 		groups_update_groupmeta( $group_id, '_tutor_bp_group_activities', $tutor_bp_course_activities );
 	}
 

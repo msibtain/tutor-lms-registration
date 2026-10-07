@@ -12,6 +12,7 @@ namespace TutorPro\RestAPI\Controllers;
 
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use TUTOR_ENROLLMENTS\Enrollments_List;
 use WP_Query;
 use WP_REST_Request;
 
@@ -151,9 +152,19 @@ class EnrollmentController extends BaseController {
 			return $this->validation_error_response( $validation->errors, $this->code_read );
 		}
 
+		if ( ! tutor_utils()->is_addon_enabled( 'enrollments' ) ) {
+			return $this->response(
+				$this->code_read,
+				__( 'Enrollments addon is not active', 'tutor-pro' ),
+				'',
+				$this->client_error_code
+			);
+		}
+
 		try {
-			$course_id   = $params['course_id'];
-			$enrollments = tutor_utils()->get_enrolments( 'approved', 0, 10, '', $course_id );
+			$enrollment_list = new Enrollments_List( false );
+			$course_id       = (int) $params['course_id'];
+			$enrollments     = $enrollment_list->get_enrolments( 'approved', 0, 10, '', $course_id );
 
 			if ( is_array( $enrollments ) && count( $enrollments ) ) {
 				return $this->response(

@@ -70,9 +70,11 @@ class init {
 			return;
 		}
 
+		$has_wpml     = tutor_utils()->is_plugin_active( 'sitepress-multilingual-cms/sitepress.php' );
 		$addon_config = tutor_utils()->get_addon_config( TUTOR_WPML()->basename );
 		$is_enable    = (bool) tutor_utils()->avalue_dot( 'is_enable', $addon_config );
-		if ( ! $is_enable ) {
+
+		if ( ! $is_enable || ! $has_wpml ) {
 			return;
 		}
 

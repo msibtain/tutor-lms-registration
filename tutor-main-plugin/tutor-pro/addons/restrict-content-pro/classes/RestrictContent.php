@@ -10,6 +10,7 @@
 
 namespace TUTOR_RC;
 
+use Tutor\Models\EnrollmentModel;
 use TUTOR\Tutor_Base;
 
 /**
@@ -46,7 +47,7 @@ class RestrictContent extends Tutor_Base {
 			$course_id             = tutor_utils()->get_course_id_by_content( get_the_ID() );
 			$user_id               = get_current_user_id();
 
-			if ( tutor_utils()->is_enrolled( $course_id ) ) {
+			if ( EnrollmentModel::is_enrolled( $course_id ) ) {
 				if ( function_exists( 'rcp_user_can_access' ) ) {
 					if ( rcp_user_can_access( $user_id, $course_id ) ) {
 						$has_membership_access = true;
@@ -83,7 +84,7 @@ class RestrictContent extends Tutor_Base {
 		 *
 		 * @since v2.0.5
 		 */
-		$is_enrolled          = tutor_utils()->is_enrolled( get_the_ID(), get_current_user_id() );
+		$is_enrolled          = EnrollmentModel::is_enrolled( get_the_ID(), get_current_user_id() );
 		$is_enabled           = tutor_utils()->get_option( 'course_content_access_for_ia' );
 		$can_user_edit_course = tutor_utils()->can_user_edit_course( get_current_user_id(), get_the_ID() );
 
@@ -167,12 +168,12 @@ class RestrictContent extends Tutor_Base {
 					<input type="hidden" name="tutor_course_id" value="<?php echo esc_attr( get_the_ID() ); ?>">
 					<input type="hidden" name="tutor_course_action" value="_tutor_course_enroll_now">
 					<button type="submit" class="tutor-btn tutor-btn-primary tutor-btn-lg tutor-btn-block tutor-mt-24 tutor-enroll-course-button">
-						<?php esc_html_e( 'Enroll Now', 'tutor' ); ?>
+						<?php esc_html_e( 'Enroll Now', 'tutor-pro' ); ?>
 					</button>
 				</form>
 			</div>
 			<div class="tutor-fs-7 tutor-color-muted tutor-mt-20 tutor-text-center">
-				<?php esc_html_e( 'This course is under your membership plan', 'tutor' ); ?>
+				<?php esc_html_e( 'This course is under your membership plan', 'tutor-pro' ); ?>
 			</div>
 				<?php
 				return;

@@ -28,7 +28,7 @@ $account_id = $this->get_api( 'account_id' );
 <?php if ( ! is_admin() ) : ?>
 <div class="zoom-configure-wrapper tutor-d-xl-flex tutor-align-center tutor-mt-36">
 	<div class="tutor-zoom-icon-content-wrapper tutor-d-flex tutor-sm-32 tutor-p-16">
-		<i class="tutor-icon-brand-zoom tutor-mt-4" area-hidden="true"></i>
+		<i class="tutor-icon-brand-zoom tutor-mt-4" aria-hidden="true"></i>
 		<div class="zoom-content">
 			<div class="tutor-fs-4 tutor-fw-medium tutor-color-black tutor-mb-12">
 				<?php esc_html_e( 'Setup your Zoom Integration', 'tutor-pro' ); ?>

@@ -1,4 +1,4 @@
-<div style="margin-bottom: 30px" class="tutor-mr-160">
+<div style="margin-bottom: 30px">
 	<h6 data-source="email-heading" class="tutor-email-heading">{email_heading}</h6>
 </div>
 

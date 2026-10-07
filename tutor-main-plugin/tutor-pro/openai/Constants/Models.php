@@ -32,6 +32,15 @@ final class Models {
 	const DALL_E_3 = 'dall-e-3';
 
 	/**
+	 * GPT image generate model
+	 *
+	 * @since 4.1.0
+	 *
+	 * @var string
+	 */
+	const GPT_IMAGE_2_5_FLARE = 'gpt-image-2.5-flare';
+
+	/**
 	 * The image generation model. dall-e-2 is the legacy model by openai.
 	 * This model could generate image of size 1024x1024, 512x512, and 256x256 sizes.
 	 * This model could generate from minimum 1 upto 10 images at a time and editing images are allowed only by this model.

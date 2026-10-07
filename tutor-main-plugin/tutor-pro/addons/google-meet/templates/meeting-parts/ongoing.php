@@ -8,6 +8,8 @@
  * @package TutorPro\GoogleMeet\Templates
  */
 
+use Tutor\Helpers\DateTimeHelper;
+
 $meeting       = $data['meeting'];
 $event_details = $data['event_details'];
 ?>
@@ -23,12 +25,12 @@ $event_details = $data['event_details'];
 	</div>
 </div>
 <div class="tutor-google-meet-summary">
-    <h2 class="tutor-fs-4 tutor-fw-medium tutor-color-black tutor-mb-12">
+	<h2 class="tutor-fs-4 tutor-fw-medium tutor-color-black tutor-mb-12">
 		<?php echo esc_html( $meeting->post_title ); ?>
 	</h2>
-    <p>
-        <?php echo esc_textarea( $meeting->post_content ); ?>
-    </p>
+	<p>
+		<?php echo esc_textarea( $meeting->post_content ); ?>
+	</p>
 	<div class="tutor-d-flex tutor-mt-32" style="column-gap: 50px">
 		<div class="tutor-d-flex tutor-flex-column">
 			<span class="tutor-mb-12"><?php esc_html_e( 'Meeting Start Date', 'tutor-pro' ); ?></span>
@@ -36,8 +38,12 @@ $event_details = $data['event_details'];
 			<span><?php esc_html_e( 'Host Email', 'tutor-pro' ); ?></span>
 		</div>
 		<div>
-			<p class="tutor-fw-medium tutor-color-black tutor-mb-12"><?php echo esc_html( tutor_i18n_get_formated_date( $event_details->start_datetime ) ); ?></p>
-			<p class="tutor-fw-medium tutor-color-black tutor-mb-12"><?php echo esc_html( tutor_i18n_get_formated_date( $event_details->end_datetime ) ); ?></p>
+			<p class="tutor-fw-medium tutor-color-black tutor-mb-12">
+				<span class="tutor-utc-date-time"><?php echo esc_html( DateTimeHelper::create( $event_details->start_datetime, $event_details->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?></span>
+			</p>
+			<p class="tutor-fw-medium tutor-color-black tutor-mb-12">
+				<span class="tutor-utc-date-time"><?php echo esc_html( DateTimeHelper::create( $event_details->end_datetime, $event_details->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?></span>
+			</p>
 			<p class="tutor-fw-medium tutor-color-black"><?php echo esc_html( $event_details->organizer->email ); ?></p>
 		</div>
 	</div>

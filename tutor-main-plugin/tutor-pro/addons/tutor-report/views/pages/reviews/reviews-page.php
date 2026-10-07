@@ -9,14 +9,14 @@
  */
 
 $available_status = array(
-	'approved' => array( __( 'Published', 'tutor' ), 'select-success' ),
-	'hold'     => array( __( 'Unpublished', 'tutor' ), 'select-warning' ),
+	'approved' => array( __( 'Published', 'tutor-pro' ), 'select-success' ),
+	'hold'     => array( __( 'Unpublished', 'tutor-pro' ), 'select-warning' ),
 );
 ?>
 
 <div id="tutor-report-reviews" class="tutor-report-common">
 	<?php if ( is_array( $reviews ) && count( $reviews ) ) : ?>
-		<div class="tutor-table-responsive">
+		<div class="tutor-table-responsive tutor-dashboard-list-table">
 			<table class="tutor-table tutor-table-top tutor-table-report-tab-review" id="tutor-admin-reviews-table">
 				<thead>
 					<tr>
@@ -79,16 +79,16 @@ $available_status = array(
 									</div>
 									<div class="tutor-dropdown-parent">
 										<button type="button" class="tutor-iconic-btn" action-tutor-dropdown="toggle">
-											<span class="tutor-icon-kebab-menu" area-hidden="true"></span>
+											<span class="tutor-icon-kebab-menu" aria-hidden="true"></span>
 										</button>
 										<div id="table-dashboard-review-list-<?php echo esc_attr( $review->comment_ID ); ?>" class="tutor-dropdown tutor-dropdown-dark tutor-text-left">
 											<a class="tutor-dropdown-item" href="<?php echo esc_url( get_permalink( $review->comment_post_ID ) ); ?>" target="_blank">
-												<i class="tutor-icon-edit tutor-mr-8" area-hidden="true"></i>
-												<span><?php esc_html_e( 'Preview', 'tutor' ); ?></span>
+												<i class="tutor-icon-edit tutor-mr-8" aria-hidden="true"></i>
+												<span><?php esc_html_e( 'Preview', 'tutor-pro' ); ?></span>
 											</a>
 											<a data-tutor-modal-target="tutor-common-confirmation-modal" class="tutor-dropdown-item tutor-admin-review-delete tutor-delete-recent-reviews" data-id="<?php echo esc_attr( $review->comment_ID ); ?>">
-												<i class="tutor-icon-trash-can-bold tutor-mr-8" area-hidden="true"></i>
-												<span><?php esc_html_e( 'Delete', 'tutor' ); ?></span>
+												<i class="tutor-icon-trash-can-bold tutor-mr-8" aria-hidden="true"></i>
+												<span><?php esc_html_e( 'Delete', 'tutor-pro' ); ?></span>
 											</a>
 										</div>
 									</div>
@@ -98,25 +98,25 @@ $available_status = array(
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+
+			<div class="tutor-report-courses-data-table-pagination tutor-report-content-common-pagination tutor-mt-32">
+				<?php
+				if ( $total_items > $per_page ) {
+					$pagination_data = array(
+						'base'        => str_replace( $current_page, '%#%', 'admin.php?page=tutor_report&sub_page=reviews&paged=%#%' ),
+						'total_items' => $total_items,
+						'paged'       => max( 1, $current_page ),
+						'per_page'    => $per_page,
+					);
+
+					tutor_load_template_from_custom_path( tutor()->path . 'views/elements/pagination.php', $pagination_data );
+				}
+				?>
+			</div>
 		</div>
 	<?php else : ?>
-		<?php tutor_utils()->tutor_empty_state( tutor_utils()->not_found_text() ); ?>
+		<?php tutor_utils()->render_list_empty_state(); ?>
 	<?php endif; ?>
-
-	<div class="tutor-report-courses-data-table-pagination tutor-report-content-common-pagination tutor-mt-32">
-		<?php
-		if ( $total_items > $per_page ) {
-			$pagination_data = array(
-				'base'        => str_replace( $current_page, '%#%', 'admin.php?page=tutor_report&sub_page=reviews&paged=%#%' ),
-				'total_items' => $total_items,
-				'paged'       => max( 1, $current_page ),
-				'per_page'    => $per_page,
-			);
-
-			tutor_load_template_from_custom_path( tutor()->path . 'views/elements/pagination.php', $pagination_data );
-		}
-		?>
-	</div>
 </div>
 
 <?php tutor_load_template_from_custom_path( tutor()->path . 'views/elements/common-confirm-popup.php' ); ?>

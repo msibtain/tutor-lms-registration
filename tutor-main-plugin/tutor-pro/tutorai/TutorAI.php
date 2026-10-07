@@ -55,6 +55,7 @@ final class TutorAI {
 			TextController::class,
 			CourseGenerationController::class,
 			CourseCreatorController::class,
+			AjaxHandler::class,
 		);
 
 		foreach ( $controllers as $controller ) {

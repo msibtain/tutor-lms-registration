@@ -16,6 +16,8 @@ use Exception;
 use Tutor\Helpers\QueryHelper;
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use Tutor\Models\QuizModel;
+use TutorPro\Models\QuizModel as ProQuizModel;
 use WP_REST_Request;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -118,7 +120,7 @@ class QuizQuestionController extends BaseController {
 		$this->question_table = $wpdb->prefix . 'tutor_quiz_questions';
 		$this->answer_table   = $wpdb->prefix . 'tutor_quiz_question_answers';
 
-		$this->question_types = tutor_utils()->get_question_types();
+		$this->question_types = QuizModel::get_question_types();
 	}
 
 	/**
@@ -366,15 +368,25 @@ class QuizQuestionController extends BaseController {
 	 */
 	public function save_answers( int $question_id, string $question_type, array $answers ) {
 		$answer_data = array();
+		$is_mask_question_type = in_array( $question_type, array( 'draw_image', 'pin_image', 'puzzle' ), true );
 
 		foreach ( $answers as $key => $answer ) {
+			$answer_two_gap_match = $answer['answer_two_gap_match'] ?? null;
+			if ( $is_mask_question_type && is_string( $answer_two_gap_match ) ) {
+				$answer_two_gap_match = ProQuizModel::save_quiz_draw_image_mask(
+					$answer_two_gap_match,
+					$question_type,
+					array( 'data_status' => 'update' )
+				);
+			}
+
 			$option = array(
 				'belongs_question_id'   => $question_id,
 				'belongs_question_type' => $question_type,
 				'answer_title'          => $answer['answer_title'],
 				'is_correct'            => $answer['is_correct'],
 				'answer_order'          => $key + 1,
-				'answer_two_gap_match'  => $answer['answer_two_gap_match'] ?? null,
+				'answer_two_gap_match'  => $answer_two_gap_match,
 			);
 			array_push( $answer_data, $option );
 		}

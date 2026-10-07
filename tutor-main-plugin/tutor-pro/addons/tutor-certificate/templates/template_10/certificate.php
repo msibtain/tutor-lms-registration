@@ -11,7 +11,7 @@
 
 	<div class="certificate-content">
 		<p><strong><?php esc_html_e( 'This is to certify that', 'tutor-pro' ); ?></strong></p>
-		<h1><?php echo esc_html( tutor_utils()->get_user_name( $user ) ); ?></h1>
+		<h1><?php echo esc_html( tutor_utils()->display_name( $user->ID ) ); ?></h1>
 		<p><?php echo esc_html__( 'has successfully completed', 'tutor-pro' ) . ' ' . esc_html( $duration_text ) . ' ' . esc_html__( 'online course of', 'tutor-pro' ); ?></p>
 		<h2><?php echo esc_html( $course->post_title ); ?></h2>
 		<p><?php echo esc_html__( 'on', 'tutor-pro' ) . ' ' . esc_html( $completed_date ); ?></p>

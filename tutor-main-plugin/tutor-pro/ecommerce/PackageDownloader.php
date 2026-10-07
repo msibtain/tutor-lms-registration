@@ -10,9 +10,10 @@
 
 namespace TutorPro\Ecommerce;
 
-use Tutor\Helpers\HttpHelper;
 use TUTOR\Input;
+use Tutor\Helpers\HttpHelper;
 use Tutor\Traits\JsonResponse;
+use Tutor\Helpers\PluginInstaller;
 
 /**
  * Handle payment gateway install/remove
@@ -60,38 +61,53 @@ class PackageDownloader {
 
 		if ( ! empty( $slug ) ) {
 			try {
-				$args = array(
-					'slug'        => $slug,
-					'domain'      => $domain,
-					'license_key' => $license_key,
-				);
+				$basename = "tutor-{$slug}/tutor-{$slug}.php";
 
-				$remote_post = HttpHelper::post( $api_url, $args );
-				if ( ! is_wp_error( $remote_post ) ) {
-					$status_code = $remote_post->get_status_code();
-					$res_body    = json_decode( stripslashes( $remote_post->get_body() ) );
-					if ( 200 === $status_code ) {
-						$url      = $res_body->body_response;
-						$basename = $action_type ? "tutor-{$slug}/tutor-{$slug}.php" : null;
-						try {
-							$install = $this->install_or_upgrade_plugin( $url, $basename );
-							if ( $install ) {
-								$message = __( 'Payment gateway installed successfully', 'tutor-pro' );
-							} else {
-								$success = false;
-								$message = $default_err_msg;
-							}
-						} catch ( \Throwable $th ) {
+				if ( file_exists( WP_PLUGIN_DIR . '/' . $basename && 'upgrade' !== $action_type ) ) {
+					if ( ! is_plugin_active( $basename ) ) {
+						$response = activate_plugin( $basename );
+						if ( is_wp_error( $response ) ) {
 							$success = false;
-							$message = $th->getMessage();
+							$message = $response->get_error_message();
+						} else {
+							$message = __( 'Payment gateway activated successfully', 'tutor-pro' );
+						}
+					} else {
+						$message = __( 'Payment gateway already activated', 'tutor-pro' );
+					}
+				} else {
+					$args = array(
+						'slug'        => $slug,
+						'domain'      => $domain,
+						'license_key' => $license_key,
+					);
+
+					$remote_post = HttpHelper::post( $api_url, $args );
+					if ( ! is_wp_error( $remote_post ) ) {
+						$status_code = $remote_post->get_status_code();
+						$res_body    = json_decode( stripslashes( $remote_post->get_body() ) );
+						if ( 200 === $status_code ) {
+							$url = $res_body->body_response;
+							try {
+								$install = PluginInstaller::install_or_upgrade_plugin( $url, $action_type ? $basename : null );
+								if ( $install ) {
+									$message = __( 'Payment gateway installed successfully', 'tutor-pro' );
+								} else {
+									$success = false;
+									$message = $default_err_msg;
+								}
+							} catch ( \Throwable $th ) {
+								$success = false;
+								$message = $th->getMessage();
+							}
+						} else {
+							$success = false;
+							$message = $res_body->response ?? $default_err_msg;
 						}
 					} else {
 						$success = false;
-						$message = $res_body->response ?? $default_err_msg;
+						$message = $remote_post->get_error_message();
 					}
-				} else {
-					$success = false;
-					$message = $remote_post->get_error_message();
 				}
 			} catch ( \Throwable $th ) {
 				$success = false;
@@ -115,73 +131,6 @@ class PackageDownloader {
 		}
 	}
 
-	/**
-	 * Install/Upgrade the payment gateway plugin
-	 *
-	 * @since 3.0.0
-	 *
-	 * @param string $plugin_url Plugin URL.
-	 * @param mixed  $plugin_basename Plugin basename.
-	 *
-	 * @throws \Exception If the plugin installation fails.
-	 *
-	 * @return bool
-	 */
-	public function install_or_upgrade_plugin( $plugin_url, $plugin_basename = null ) {
-		$plugin_dir = $plugin_basename ? dirname( $plugin_basename ) : null;
-		if ( ! $plugin_dir ) {
-			$plugin_dir = explode( '-', basename( $plugin_url ) )[0];
-		}
-
-		$args = array(
-			'package'                     => $plugin_url,
-			'destination'                 => WP_PLUGIN_DIR . '/' . $plugin_dir,
-			'clear_destination'           => true,
-			'abort_if_destination_exists' => true,
-		);
-
-		// Include necessary WordPress functions for plugin installation.
-		if ( ! function_exists( 'plugins_api' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
-		}
-		if ( ! class_exists( 'WP_Upgrader' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-		}
-
-		// Define the plugin installer class.
-		$upgrader = new \Plugin_Upgrader( new \WP_Ajax_Upgrader_Skin() );
-
-		if ( $plugin_basename ) {
-			// Upgrade.
-			$upgrade = $upgrader->run( $args );
-			if ( is_wp_error( $upgrade ) ) {
-				throw new \Exception( $upgrade->get_error_message() );
-			} elseif ( ! $upgrade ) {
-				return false;
-			}
-		} else {
-			// Install the plugin.
-			$install = $upgrader->install( $plugin_url, $args );
-			if ( is_wp_error( $install ) ) {
-				throw new \Exception( $install->get_error_message() );
-			} elseif ( ! $install ) {
-				return false;
-			}
-		}
-
-		// Activate the plugin after installation.
-		$plugin_basename = $upgrader->plugin_info(); // Retrieves the plugin basename.
-		if ( $plugin_basename ) {
-			$activate = activate_plugin( $plugin_basename );
-			if ( is_wp_error( $activate ) ) {
-				throw new \Exception( $activate->get_error_message() );
-			}
-		} else {
-			return false;
-		}
-
-		return true;
-	}
 
 	/**
 	 * Ajax handler to remove a installed payment gateway
@@ -230,5 +179,4 @@ class PackageDownloader {
 			);
 		}
 	}
-
 }

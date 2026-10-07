@@ -61,17 +61,18 @@ if ( ! function_exists( 'TUTOR_REPORT' ) ) {
 	}
 }
 
-require 'classes/init.php';
-new TUTOR_REPORT\init();
+require 'classes/Init.php';
+new TUTOR_REPORT\Init();
 
 if ( ! function_exists( 'tutor_report_instance' ) ) {
 	/**
 	 * Get report addon init instance
 	 *
 	 * @since 1.9.8
-	 * @return \TUTOR_REPORT\init
+	 *
+	 * @return \TUTOR_REPORT\Init
 	 */
 	function tutor_report_instance() {
-		return \TUTOR_REPORT\init::instance();
+		return \TUTOR_REPORT\Init::instance();
 	}
 }

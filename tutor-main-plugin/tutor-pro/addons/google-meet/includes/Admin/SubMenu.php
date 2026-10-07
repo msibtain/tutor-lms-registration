@@ -23,28 +23,32 @@ class SubMenu {
 	/**
 	 * Register hooks & manage dependency
 	 *
-	 * @since v2.1.0
+	 * @since 2.1.0
 	 */
 	public function __construct() {
-		add_action( 'tutor_admin_register', __CLASS__ . '::register_menu' );
+		add_filter( 'tutor_admin_menu', array( $this, 'register_menu' ) );
 	}
 
 	/**
-	 * Register sub-menu
+	 * Add sub-menu.
 	 *
-	 * @since v2.1.0
+	 * @since 3.8.0
 	 *
-	 * @return void
+	 * @param array $menu menu.
+	 *
+	 * @return array
 	 */
-	public static function register_menu() {
-		add_submenu_page(
-			'tutor',
-			__( 'Google Meet', 'tutor-pro' ),
-			__( 'Google Meet', 'tutor-pro' ),
-			'manage_tutor_instructor',
-			'google-meet',
-			array( __CLASS__, 'render_view' )
+	public function register_menu( $menu ) {
+		$menu['group_three']['google_meet'] = array(
+			'parent_slug' => 'tutor',
+			'page_title'  => __( 'Google Meet', 'tutor-pro' ),
+			'menu_title'  => __( 'Google Meet', 'tutor-pro' ),
+			'capability'  => 'manage_tutor_instructor',
+			'menu_slug'   => 'google-meet',
+			'callback'    => array( $this, 'render_view' ),
 		);
+
+		return $menu;
 	}
 
 	/**

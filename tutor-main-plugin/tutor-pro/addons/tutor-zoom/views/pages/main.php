@@ -81,7 +81,7 @@ if ( ! empty( Input::get( 'sub_page', '' ) ) ) {
 	<?php if ( is_admin() ) : ?>
 		<?php
 			$navbar_data     = array(
-				'page_title' => __( 'Zoom', 'tutor' ),
+				'page_title' => __( 'Zoom', 'tutor-pro' ),
 				'tabs'       => $sub_pages,
 				'active'     => $current_sub_page,
 			);
@@ -135,7 +135,7 @@ if ( ! empty( Input::get( 'sub_page', '' ) ) ) {
 		</div>
 	<?php endif; ?>
 
-	<div class="<?php echo is_admin() ? 'tutor-admin-body' : ''; ?>">
+	<div class="<?php echo is_admin() ? 'tutor-admin-container tutor-admin-container-lg' : ''; ?>">
 		<?php
 			$frontend_class = ! is_admin() ? 'tutor-zoom-frontend' : '';
 		if ( $error_msg ) :

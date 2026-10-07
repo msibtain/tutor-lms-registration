@@ -11,26 +11,65 @@
 
 namespace TUTOR_ENROLLMENTS;
 
-use TUTOR\Input;
+defined( 'ABSPATH' ) || exit;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+use TUTOR\Input;
 
 /**
  * Class Init
+ *
+ * @since 2.0.0
  */
 class Init {
-	//phpcs:disable
+	/**
+	 * Version
+	 *
+	 * @var string
+	 */
 	public $version = TUTOR_ENROLLMENTS_VERSION;
+
+	/**
+	 * Path
+	 *
+	 * @var string
+	 */
 	public $path;
+
+	/**
+	 * URL
+	 *
+	 * @var string
+	 */
 	public $url;
+
+	/**
+	 * Base name
+	 *
+	 * @var string
+	 */
 	public $basename;
 
 	// Module.
+	/**
+	 * Enrollment instance
+	 *
+	 * @var Enrollments
+	 */
 	private $enrollments;
+
+	/**
+	 * Enrollment list instance
+	 *
+	 * @var Enrollments_List
+	 */
 	public $enrollment_list;
-	//phpcs:enable
+
+	/**
+	 * Enrollment expiry instance
+	 *
+	 * @var Enrollment_Expiry
+	 */
+	public $enrollment_expiry;
 
 	/**
 	 * Constructor
@@ -51,6 +90,7 @@ class Init {
 		$this->basename = plugin_basename( TUTOR_ENROLLMENTS_FILE );
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'register_scritps' ) );
+		add_action( 'wp_enqueue_scripts', array( $this, 'register_frontend_scripts' ) );
 
 		$this->load_enrollment();
 	}
@@ -62,13 +102,22 @@ class Init {
 	 */
 	public function register_scritps() {
 		if ( is_admin() && 'enrollments' === Input::get( 'page' ) ) {
-			wp_enqueue_style( 'enrollment-css-script', TUTOR_ENROLLMENTS()->url . 'assets/css/enroll.css', array(), TUTOR_PRO_VERSION );
+			wp_enqueue_style( 'enrollment-admin-style', TUTOR_ENROLLMENTS()->url . 'assets/css/admin.css', array(), TUTOR_PRO_VERSION );
+			wp_enqueue_script( 'tutor-enrollment-admin-script', TUTOR_ENROLLMENTS()->url . 'assets/js/admin.js', array(), TUTOR_PRO_VERSION, true );
 		}
 
 		if ( is_admin() && 'enrollments' === Input::get( 'page' ) && 'add_new' === Input::get( 'action' ) ) {
-			wp_enqueue_script( 'tutor-shared', TUTOR_ENROLLMENTS()->url . 'assets/js/tutor-shared.min.js', array( 'wp-i18n', 'wp-element' ), TUTOR_VERSION, true );
-			wp_enqueue_script( 'manual-enrollment-js-script', TUTOR_ENROLLMENTS()->url . 'assets/js/manual-enrollment.min.js', array( 'wp-i18n', 'wp-element', 'tutor-shared' ), TUTOR_PRO_VERSION, true );
+			wp_enqueue_script( 'tutor-create-enrollment', TUTOR_ENROLLMENTS()->url . 'assets/js/create-enrollment/index.js', array( 'wp-i18n', 'wp-element' ), TUTOR_PRO_VERSION, true );
 		}
+	}
+
+	/**
+	 * Register frontend scripts
+	 *
+	 * @return void
+	 */
+	public function register_frontend_scripts() {
+		wp_enqueue_style( 'enrollment-frontend-css', TUTOR_ENROLLMENTS()->url . 'assets/css/enroll.css', array(), TUTOR_PRO_VERSION );
 	}
 
 	/**
@@ -78,8 +127,9 @@ class Init {
 	 */
 	public function load_enrollment() {
 		spl_autoload_register( array( $this, 'loader' ) );
-		$this->enrollments     = new Enrollments();
-		$this->enrollment_list = new Enrollments_List();
+		$this->enrollments       = new Enrollments();
+		$this->enrollment_list   = new Enrollments_List();
+		$this->enrollment_expiry = new Enrollment_Expiry();
 	}
 
 	/**

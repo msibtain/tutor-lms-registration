@@ -6,11 +6,16 @@
  * @subpackage Report
  */
 
+defined( 'ABSPATH' ) || exit;
+
 if ( ! isset( $data['student_list'], $data['course_id'], $data['pagination'], $data['details_url'] ) ) {
 	return;
 }
 
-$data = (object) $data;
+$data            = (object) $data;
+$certificate     = tutor_utils()->is_addon_enabled( 'tutor-certificate' ) ? ( new TUTOR_CERT\Certificate( true ) ) : null;
+$user_ids        = $data->student_list ? array_map( fn( $student ) => $student->ID, $data->student_list ) : array();
+$has_certificate = isset( $certificate ) && $certificate->has_course_certificate( $data->course_id ?? 0, $user_ids );
 ?>
 
 <div id="tutor-course-details-student-list" class="tutor-mb-48">
@@ -38,6 +43,7 @@ $data = (object) $data;
 							<th width="30%">
 								<?php esc_html_e( 'Progress', 'tutor-pro' ); ?>
 							</th>
+							<?php if ( $has_certificate ) : ?>
 							<th>
 								<?php esc_html_e( 'Certificate', 'tutor-pro' ); ?>
 								<div class="tooltip-wrap">
@@ -45,15 +51,16 @@ $data = (object) $data;
 									<span class="tooltip-txt tooltip-left"><?php esc_html_e( 'Certificate Issued', 'tutor-pro' ); ?></span>
 								</div>
 							</th>
+							<?php endif; ?>
 							<th></th>
 						</tr>
 					</thead>
 
 					<tbody>
-						<?php foreach ( $data->student_list as $student ) : ?>
+						<?php foreach ( $user_ids as $user_id ) : ?>
 							<?php
-							$user_info     = get_userdata( $student->ID );
-							$enrolled_data = tutor_utils()->get_enrolled_data( $student->ID, $data->course_id );
+							$enrolled_data = tutor_utils()->get_enrolled_data( $user_id, $data->course_id );
+							$user_info     = get_userdata( $user_id );
 							if ( ! $user_info ) {
 								continue;
 							}
@@ -61,11 +68,11 @@ $data = (object) $data;
 							<tr>
 								<td>
 									<div class="tutor-d-flex tutor-align-center tutor-gap-2">
-										<?php echo wp_kses( tutor_utils()->get_tutor_avatar( $user_info->ID ), tutor_utils()->allowed_avatar_tags() ); ?>
+										<?php echo wp_kses( tutor_utils()->get_tutor_avatar( $user_id ), tutor_utils()->allowed_avatar_tags() ); ?>
 										<div>
 											<div class="tutor-d-flex">
 												<?php echo esc_html( $user_info->display_name ); ?>
-												<a href="<?php echo esc_url( tutor_utils()->profile_url( $user_info->ID, true ) ); ?>" class="tutor-iconic-btn tutor-ml-4">
+												<a href="<?php echo esc_url( tutor_utils()->profile_url( $user_id, true ) ); ?>" class="tutor-iconic-btn tutor-ml-4">
 													<span class="tutor-icon-external-link"></span>
 												</a>
 											</div>
@@ -76,16 +83,16 @@ $data = (object) $data;
 									</div>
 								</td>
 								<td>
-									<?php echo esc_html( tutor_i18n_get_formated_date( $enrolled_data->post_date_gmt, get_option( 'date_format' ) ) ); ?>
+									<?php echo esc_html( tutor_i18n_get_formated_date( tutor_utils()->get_local_time_from_unix( $enrolled_data->post_date_gmt ), get_option( 'date_format' ) ) ); ?>
 								</td>
 								<td>
-									<?php echo esc_html( tutor_utils()->get_completed_lesson_count_by_course( $data->course_id, $user_info->ID ) ); ?></span>/<span class="tutor-color-muted"><?php echo esc_html( tutor_utils()->get_lesson_count_by_course( $data->course_id ) ); ?></span>
+									<?php echo esc_html( tutor_utils()->get_completed_lesson_count_by_course( $data->course_id, $user_id ) ); ?></span>/<span class="tutor-color-muted"><?php echo esc_html( tutor_utils()->get_lesson_count_by_course( $data->course_id ) ); ?></span>
 								</td>
 								<td>
-									<?php echo esc_html( tutor_utils()->count_completed_assignment( $data->course_id, $user_info->ID ) ); ?></span>/<span class="tutor-color-muted"><?php echo esc_html( tutor_utils()->get_assignments_by_course( $data->course_id )->count ); ?></span>
+									<?php echo esc_html( tutor_utils()->count_completed_assignment( $data->course_id, $user_id ) ); ?></span>/<span class="tutor-color-muted"><?php echo esc_html( tutor_utils()->get_assignments_by_course( $data->course_id )->count ); ?></span>
 								</td>
 								<td>
-									<?php $percentage = tutor_utils()->get_course_completed_percent( $data->course_id, $user_info->ID ); ?>
+									<?php $percentage = tutor_utils()->get_course_completed_percent( $data->course_id, $user_id ); ?>
 									<div class="tutor-d-flex tutor-align-center">
 										<div class="tutor-progress-bar" style="min-width: 50px; --tutor-progress-value:<?php echo esc_attr( $percentage ); ?>%;">
 											<div class="tutor-progress-value"></div>
@@ -95,14 +102,16 @@ $data = (object) $data;
 										</div>
 									</div>
 								</td>
+								<?php if ( $has_certificate ) : ?>
 								<td>
-									<?php if ( get_user_meta( $user_info->ID, 'tutor_certificate_generated', true ) ) : ?>
-										<span class="tutor-icon-circle-mark-o tutor-color-primary"></span>
+									<?php if ( get_user_meta( $user_id, 'tutor_certificate_generated', true ) ) : ?>
+										<?php do_action( 'tutor_report_course_certificate', $data->course_id ?? 0, $user_id ?? 0 ); ?>
 									<?php endif; ?>
 								</td>
+								<?php endif; ?>
 								<td>
 									<div class="tutor-text-right">
-										<a href="<?php echo esc_url( $data->details_url . $user_info->ID ); ?>" class="tutor-btn tutor-btn-primary" target="_blank">
+										<a href="<?php echo esc_url( $data->details_url . $user_id ); ?>" class="tutor-btn tutor-btn-primary" target="_blank">
 											<?php esc_html_e( 'Details', 'tutor-pro' ); ?>
 										</a>
 									</div>

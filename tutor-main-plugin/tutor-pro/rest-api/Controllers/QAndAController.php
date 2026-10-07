@@ -136,7 +136,7 @@ class QAndAController extends BaseController {
 	 */
 	public function create( WP_REST_Request $request ) {
 		// Get params and sanitize it.
-		$params = Input::sanitize_array( $request->get_params() );
+		$params = Input::sanitize_array( $request->get_params(), array( 'qna_text' => 'sanitize_textarea_field' ) );
 
 		// Extract fillable fields.
 		$params = array_intersect_key( $params, array_flip( $this->fillable_fields ) );
@@ -161,7 +161,7 @@ class QAndAController extends BaseController {
 		$qna_data->user_id     = $user_id;
 		$qna_data->course_id   = $course_id;
 		$qna_data->question_id = $question_id;
-		$qna_data->qna_text    = $qna_text;
+		$qna_data->qna_text    = nl2br( $qna_text );
 		$qna_data->user        = $user;
 		$qna_data->date        = $date;
 

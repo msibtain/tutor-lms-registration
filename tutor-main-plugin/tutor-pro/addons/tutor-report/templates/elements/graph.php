@@ -8,8 +8,13 @@
  * @since 1.9.9
  */
 
+defined( 'ABSPATH' ) || exit;
+
+$data = $data ?? array();
 ?>
-<div class="tutor-analytics-graph tutor-mb-48">
+
+<?php if ( is_admin() && ! wp_doing_ajax() ) : ?>
+	<div class="tutor-analytics-graph tutor-mb-48">
 	<?php if ( $data ) : ?>
 		<div class="tutor-nav-tabs-container">
 			<div class="tutor-nav tutor-nav-tabs">
@@ -22,7 +27,7 @@
 							</div>
 							<div class="tutor-fs-5 tutor-fw-bold tutor-color-black tutor-mt-4">
 								<?php if ( $value['price'] ) : ?>
-									<?php echo $value['tab_value'] ? wp_kses_post( tutor_utils()->tutor_price( $value['tab_value'] ) ) : '-'; ?>
+									<?php echo $value['tab_value'] ? wp_kses( tutor_utils()->tutor_price( $value['tab_value'] ), tutor_price_allowed_html() ) : '-'; ?>
 								<?php else : ?>
 									<?php echo esc_html( $value['tab_value'] ? $value['tab_value'] : '-' ); ?>
 								<?php endif; ?>    
@@ -47,4 +52,67 @@
 			</div>
 		</div>
 	<?php endif; ?>
-</div>
+	</div>
+
+	<!-- Graph For Front-End -->
+	<?php else : ?>
+	<div class="tutor-analytics-graph">
+		<?php
+		if ( $data ) :
+			$page_tab_items = array();
+
+			foreach ( $data as $key => $value ) {
+
+				$page_tab_items[] = array(
+					'id'        => $value['data_attr'],
+					'label'     => $value['tab_title'],
+					'sub_label' => wp_kses( $value['tab_value'], tutor_price_allowed_html() ) ?? '-',
+					'content'   => $value['graph_data'] ?? '',
+				);
+			}
+			?>
+
+			<div 
+				class="tutor-analytics-graph-tab"
+				x-data="tutorTabs({
+					tabs: <?php echo esc_attr( tutor_json_encode( $page_tab_items ) ); ?>,
+					orientation: 'horizontal',
+					defaultTab: 'ta_total_earnings',
+				})"
+			>
+				<div x-ref="tablist" role="tablist" aria-orientation="horizontal" class="tutor-analytics-graph-tab-items">
+					<template x-for="tab in tabs" :key="tab.id">
+						<button
+							type="button"
+							role="tab"
+							class="tutor-analytics-graph-tab-items-button"
+							x-bind:aria-selected="isActive(tab.id)"
+							:class='getTabClass(tab)'
+							@click="selectTab(tab.id)"
+							style="height:78px;"
+						>
+							<div class="tutor-flex tutor-flex-column tutor-items-start">
+								<span x-text="tab.label" class="tutor-text-tiny"></span>
+								<span x-html="tab.sub_label" class="tutor-medium tutor-font-bold"></span>
+							</div>
+						</button>
+					</template>
+				</div>	
+
+				<div class="tutor-tabs-content">
+					<template x-for="tab in tabs" :key="tab.id">
+						<div
+							class="tutor-tab-panel"
+							role="tabpanel"
+							x-show="activeTab === tab.id"
+							x-cloak
+						>			
+							<canvas x-data="tutorOverviewChart(tab.content)" x-ref="canvas">								
+							</canvas>						
+						</div>
+					</template>
+				</div>
+			</div>
+		<?php endif; ?>
+	</div>
+<?php endif; ?>

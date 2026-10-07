@@ -15,6 +15,7 @@ namespace TutorPro\RestAPI\Controllers;
 use Exception;
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use Tutor\Models\EnrollmentModel;
 use TUTOR_ASSIGNMENTS\Assignments;
 use WP_REST_Request;
 
@@ -482,7 +483,11 @@ class AssignmentController extends BaseController {
 			$errors = $validation->errors;
 		}
 
-		$deadline_date = tutor_utils()->get_assignment_deadline_date( (int) $params['assignment_id'], 'Y-m-d H:i:s' );
+		$student_id    = (int) $params['student_id'];
+		$assignment_id = (int) $params['assignment_id'];
+		$course_id     = tutor_utils()->get_course_id_by( 'assignment', $assignment_id );
+
+		$deadline_date = tutor_utils()->get_assignment_deadline_date_in_gmt( $assignment_id, null, $student_id, $course_id );
 
 		if ( ! empty( $deadline_date ) ) {
 			// Convert deadline string to a DateTime object.
@@ -515,9 +520,7 @@ class AssignmentController extends BaseController {
 			$errors['upload'] = __( 'File Upload Limit Exceeded', 'tutor-pro' );
 		}
 
-		$course_id = tutor_utils()->get_course_id_by( 'assignment', (int) $params['assignment_id'] );
-
-		if ( ! tutor_utils()->is_enrolled( $course_id, (int) $params['student_id'] ) ) {
+		if ( ! EnrollmentModel::is_enrolled( $course_id, $student_id ) ) {
 			$errors['enrollment'] = __( 'You are not enrolled in this course', 'tutor-pro' );
 		}
 
@@ -598,7 +601,11 @@ class AssignmentController extends BaseController {
 			);
 		}
 
-		$deadline_date = tutor_utils()->get_assignment_deadline_date( (int) $params['assignment_id'], 'Y-m-d H:i:s' );
+		$student_id    = (int) $params['student_id'];
+		$assignment_id = (int) $params['assignment_id'];
+		$course_id     = tutor_utils()->get_course_id_by( 'assignment', $assignment_id );
+
+		$deadline_date = tutor_utils()->get_assignment_deadline_date_in_gmt( $assignment_id, null, $student_id, $course_id );
 
 		if ( ! empty( $deadline_date ) ) {
 			// Convert deadline string to a DateTime object.
@@ -639,9 +646,7 @@ class AssignmentController extends BaseController {
 			$errors['upload'] = __( 'File Upload Limit Exceeded', 'tutor-pro' );
 		}
 
-		$course_id = tutor_utils()->get_course_id_by( 'assignment', (int) $params['assignment_id'] );
-
-		if ( ! tutor_utils()->is_enrolled( $course_id, (int) $params['student_id'] ) ) {
+		if ( ! EnrollmentModel::is_enrolled( $course_id, $student_id ) ) {
 			$errors['enrollment'] = __( 'You are not enrolled in this course', 'tutor-pro' );
 		}
 

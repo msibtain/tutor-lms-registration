@@ -8,6 +8,11 @@
  * @since 1.9.0
  */
 
+defined( 'ABSPATH' ) || exit;
+
+use Tutor\Helpers\DateTimeHelper;
+use Tutor\Models\EnrollmentModel;
+
 $course_id   = get_the_ID();
 $zoom_object = new \TUTOR_ZOOM\Zoom( false );
 
@@ -22,7 +27,7 @@ $zoom_meetings = $zoom_object->get_meetings(
 	false
 );
 
-if ( tutor_utils()->is_enrolled( $course_id ) || tutor_utils()->has_user_course_content_access( get_current_user_id(), $course_id ) ) {
+if ( EnrollmentModel::is_enrolled( $course_id ) || tutor_utils()->has_user_course_content_access( get_current_user_id(), $course_id ) ) {
 	if ( ! empty( $zoom_meetings ) ) {
 		?>
 		<div class="tutor-single-course-segment tutor-course-topics-wrap">
@@ -42,7 +47,7 @@ if ( tutor_utils()->is_enrolled( $course_id ) || tutor_utils()->has_user_course_
 					}
 
 					?>
-					<div class="tutor-course-topic tutor-zoom-meeting <?php echo esc_html( ( 0 === $index ) ? 'tutor-active' : '' ); ?>">
+					<div id="tutor-zoom-meetings" class="tutor-course-topic tutor-zoom-meeting <?php echo esc_html( ( 0 === $index ) ? 'tutor-active' : '' ); ?>">
 						<div class="tutor-course-title">
 							<div class="tutor-zoom-meeting-detail">
 								<h3>
@@ -56,8 +61,8 @@ if ( tutor_utils()->is_enrolled( $course_id ) || tutor_utils()->has_user_course_
 									?>
 								</h3>
 								<div>
-									<p>
-										<?php esc_html_e( 'Date', 'tutor-pro' ); ?>: <span><?php echo esc_html( $zoom_meeting->start_date ); ?></span>
+									<p title="<?php echo esc_attr( $zoom_meeting->timezone ); ?>">
+										<?php esc_html_e( 'Date', 'tutor-pro' ); ?>: <span class="tutor-utc-date-time"><?php echo esc_html( DateTimeHelper::create( $zoom_meeting->start_date, $zoom_meeting->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?></span>
 									</p>
 									<p>
 										<?php esc_html_e( 'Password', 'tutor-pro' ); ?>: <span><?php echo esc_html( $meeting_data['password'] ); ?></span> <i class="tutor-icon-copy tutor-copy-text" data-text="<?php echo esc_attr( $meeting_data['password'] ); ?>"></i>

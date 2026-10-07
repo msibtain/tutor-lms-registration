@@ -30,7 +30,7 @@ add_filter( 'tutor_addons_lists_config', 'tutor_enrollments_config' );
  */
 function tutor_enrollments_config( $config ) {
 	$new_config = array(
-		'name'        => __( 'Enrollment', 'tutor-pmpro' ),
+		'name'        => __( 'Enrollment', 'tutor-pro' ),
 		'description' => __( 'Enable to manually enroll students in your courses.', 'tutor-pro' ),
 	);
 
@@ -62,5 +62,5 @@ if ( ! function_exists( 'TUTOR_ENROLLMENTS' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new \TUTOR_ENROLLMENTS\Init();

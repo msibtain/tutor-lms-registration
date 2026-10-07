@@ -8,13 +8,43 @@
  * @since 1.0.0
  */
 
+use Tutor\Helpers\QueryHelper;
 use TUTOR\Input;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+defined( 'ABSPATH' ) || exit;
+
+if ( ! function_exists( 'tutor_pro' ) ) {
+	/**
+	 * Tutor Pro helper function
+	 *
+	 * @return object
+	 */
+	function tutor_pro() {
+		if ( isset( $GLOBALS['tutor_pro_plugin_info'] ) ) {
+			return $GLOBALS['tutor_pro_plugin_info'];
+		}
+
+		$path = plugin_dir_path( TUTOR_PRO_FILE );
+		$info = array(
+			'path'         => $path,
+			'templates'    => trailingslashit( $path . 'templates' ),
+			'views'        => trailingslashit( $path . 'views' ),
+			'languages'    => trailingslashit( $path . 'languages' ),
+			'url'          => plugin_dir_url( TUTOR_PRO_FILE ),
+			'assets'       => plugin_dir_url( TUTOR_PRO_FILE ) . 'assets/',
+			'icon_dir'     => plugin_dir_url( TUTOR_PRO_FILE ) . 'assets/images/',
+			'basename'     => plugin_basename( TUTOR_PRO_FILE ),
+			'version'      => TUTOR_PRO_VERSION,
+			'nonce_action' => 'tutor_pro_nonce_action',
+			'nonce'        => '_wpnonce',
+		);
+
+		$GLOBALS['tutor_pro_plugin_info'] = (object) $info;
+		return $GLOBALS['tutor_pro_plugin_info'];
+	}
 }
 
-if ( ! function_exists( 'get_generated_gradebook' ) ) {
+if ( ! function_exists( 'tutor_get_generated_gradebook' ) ) {
 	/**
 	 * Get generated gradebook.
 	 *
@@ -26,7 +56,7 @@ if ( ! function_exists( 'get_generated_gradebook' ) ) {
 	 *
 	 * @return array|bool|null|object|void
 	 */
-	function get_generated_gradebook( $type = 'final', $ref_id = 0, $user_id = 0 ) {
+	function tutor_get_generated_gradebook( $type = 'final', $ref_id = 0, $user_id = 0 ) {
 		global $wpdb;
 
 		$user_id = tutor_utils()->get_user_id( $user_id );
@@ -106,7 +136,7 @@ if ( ! function_exists( 'get_generated_gradebook' ) ) {
 	}
 }
 
-if ( ! function_exists( 'get_assignment_gradebook_by_course' ) ) {
+if ( ! function_exists( 'tutor_get_assignment_gradebook_by_course' ) ) {
 	/**
 	 * Get assignment gradebook by course
 	 *
@@ -115,7 +145,7 @@ if ( ! function_exists( 'get_assignment_gradebook_by_course' ) ) {
 	 *
 	 * @return array|null|object|void
 	 */
-	function get_assignment_gradebook_by_course( $course_id = 0, $user_id = 0 ) {
+	function tutor_get_assignment_gradebook_by_course( $course_id = 0, $user_id = 0 ) {
 		global $wpdb;
 
 		$user_id = tutor_utils()->get_user_id( $user_id );
@@ -148,7 +178,7 @@ if ( ! function_exists( 'get_assignment_gradebook_by_course' ) ) {
 	}
 }
 
-if ( ! function_exists( 'get_quiz_gradebook_by_course' ) ) {
+if ( ! function_exists( 'tutor_get_quiz_gradebook_by_course' ) ) {
 	/**
 	 * Get quiz gradebook by course
 	 *
@@ -156,7 +186,7 @@ if ( ! function_exists( 'get_quiz_gradebook_by_course' ) ) {
 	 * @param integer $user_id user id.
 	 * @return array|null|object|void
 	 */
-	function get_quiz_gradebook_by_course( $course_id = 0, $user_id = 0 ) {
+	function tutor_get_quiz_gradebook_by_course( $course_id = 0, $user_id = 0 ) {
 		global $wpdb;
 
 		$user_id = tutor_utils()->get_user_id( $user_id );
@@ -170,8 +200,10 @@ if ( ! function_exists( 'get_quiz_gradebook_by_course' ) ) {
 				FROM 	{$wpdb->tutor_gradebooks_results}
 				LEFT JOIN {$wpdb->tutor_gradebooks} 
 						ON {$wpdb->tutor_gradebooks_results}.gradebook_id = {$wpdb->tutor_gradebooks}.gradebook_id
-				WHERE 	user_id = %d 
+				WHERE course_id = %d 
+						AND user_id = %d 
 						AND result_for = %s",
+				$course_id,
 				$user_id,
 				'quiz'
 			)
@@ -183,7 +215,6 @@ if ( ! function_exists( 'get_quiz_gradebook_by_course' ) ) {
 		}
 
 		return $res;
-
 	}
 }
 
@@ -336,9 +367,9 @@ if ( ! function_exists( 'tutor_gradebook_get_stats' ) ) {
 		}
 
 		// Add scale.
-		if ( get_tutor_option( 'gradebook_show_grade_scale' ) ) {
+		if ( get_tutor_option( 'gradebook_show_grade_scale' ) && $grade_point ) {
 			$separator   = get_tutor_option( 'gradebook_scale_separator', '/' );
-			$grade_point = $grade_point . $separator . $gradebook_scale;
+			$grade_point = $grade_point . ' ' . $separator . ' ' . $gradebook_scale;
 		}
 
 		return array(
@@ -405,90 +436,92 @@ function get_grading_contents_by_course_id( $course_id = 0 ) {
 	return $contents;
 }
 
-/**
- * Get gradebook list
- *
- * @param array $config | config for filter / sorting query.
- * @return object
- */
-function get_generated_gradebooks( $config = array() ) {
-	global $wpdb;
-
-	$default_attr = array(
-		'course_id' => 0,
-		'start'     => '0',
-		'limit'     => '20',
-		'order'     => sanitize_sql_orderby( Input::get( 'order', 'DESC' ) ),
-		'order_by'  => 'gradebook_result_id',
-		'date'      => Input::has( 'date' ) ? tutor_get_formated_date( 'Y-m-d', Input::get( 'date' ) ) : '',
-	);
-
-	$attr = array_merge( $default_attr, $config );
+if ( ! function_exists( 'tutor_get_generated_gradebooks' ) ) {
 	/**
-	 * It contains $default_attr with override $config
+	 * Get gradebook list
+	 *
+	 * @param array $config | config for filter / sorting query.
+	 * @return object
 	 */
-	extract( $attr );//phpcs:ignore
+	function tutor_get_generated_gradebooks( $config = array() ) {
+		global $wpdb;
 
-	$gradebooks = array(
-		'count' => 0,
-		'res'   => false,
-	);
+		$default_attr = array(
+			'course_id' => 0,
+			'start'     => '0',
+			'limit'     => '20',
+			'order'     => sanitize_sql_orderby( Input::get( 'order', 'DESC' ) ),
+			'order_by'  => 'gradebook_result_id',
+			'date'      => Input::has( 'date' ) ? tutor_get_formated_date( 'Y-m-d', Input::get( 'date' ) ) : '',
+		);
 
-	$term = Input::get( 'search', '' );
-	// Prepare filters.
-	$filter_sql = '';
+		$attr = array_merge( $default_attr, $config );
+		/**
+		 * It contains $default_attr with override $config
+		 */
+		extract( $attr );//phpcs:ignore
 
-	if ( $course_id ) {
-		$filter_sql .= " AND gradebook_result.course_id = {$course_id} ";
+		$gradebooks = array(
+			'count' => 0,
+			'res'   => false,
+		);
+
+		$term = Input::get( 'search', '' );
+		// Prepare filters.
+		$filter_sql = '';
+
+		if ( $course_id ) {
+			$filter_sql .= " AND gradebook_result.course_id = {$course_id} ";
+		}
+		if ( $term ) {
+			$search_term = '%' . $wpdb->esc_like( $term ) . '%';
+			$filter_sql .= $wpdb->prepare( ' AND (course.post_title LIKE %s OR student.display_name LIKE %s) ', $search_term, $search_term );
+		}
+		if ( '' !== $date ) {
+			$filter_sql .= " AND DATE(gradebook_result.update_date) = CAST('$date' AS DATE) ";
+		}
+		$order = sanitize_sql_orderby( $order );
+
+		$gradebooks['count'] = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(gradebook_result.gradebook_result_id) total_res
+				FROM {$wpdb->tutor_gradebooks_results} gradebook_result
+				LEFT JOIN {$wpdb->posts} course 
+						ON gradebook_result.course_id = course.ID
+				LEFT  JOIN {$wpdb->users} student 
+						ON gradebook_result.user_id = student.ID
+				WHERE gradebook_result.result_for = %s {$filter_sql} ;", //phpcs:ignore
+				'final'
+			)
+		);
+
+		//phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$gradebooks['res'] = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT gradebook_result.*, 
+				(SELECT COUNT(quizzes.quiz_id) FROM {$wpdb->tutor_gradebooks_results} quizzes WHERE quizzes.user_id = gradebook_result.user_id AND quizzes.course_id = gradebook_result.course_id AND quizzes.result_for = 'quiz') as quiz_count,
+				(SELECT COUNT(assignments.assignment_id) FROM {$wpdb->tutor_gradebooks_results} assignments WHERE assignments.user_id = gradebook_result.user_id AND assignments.course_id = gradebook_result.course_id AND assignments.result_for = 'assignment') as assignment_count,
+				grade_config,
+				student.display_name,
+				course.post_title as course_title
+				FROM {$wpdb->tutor_gradebooks_results} gradebook_result
+					LEFT JOIN {$wpdb->tutor_gradebooks} gradebook ON gradebook_result.gradebook_id = gradebook.gradebook_id
+					LEFT JOIN {$wpdb->posts} course ON gradebook_result.course_id = course.ID
+					LEFT  JOIN {$wpdb->users} student ON gradebook_result.user_id = student.ID
+				WHERE gradebook_result.result_for = %s {$filter_sql} 
+				ORDER BY gradebook_result.generate_date {$order}
+				LIMIT %d, %d",
+				'final',
+				$start,
+				$limit
+			)
+		);
+		//phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		$gradebooks = (object) $gradebooks;
+
+		return $gradebooks;
 	}
-	if ( $term ) {
-		$search_term = '%' . $wpdb->esc_like( $term ) . '%';
-		$filter_sql .= $wpdb->prepare( ' AND (course.post_title LIKE %s OR student.display_name LIKE %s) ', $search_term, $search_term );
-	}
-	if ( '' !== $date ) {
-		$filter_sql .= " AND DATE(gradebook_result.update_date) = CAST('$date' AS DATE) ";
-	}
-	$order = sanitize_sql_orderby( $order );
-
-	$gradebooks['count'] = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(gradebook_result.gradebook_result_id) total_res
-			FROM {$wpdb->tutor_gradebooks_results} gradebook_result
-			LEFT JOIN {$wpdb->posts} course 
-					ON gradebook_result.course_id = course.ID
-			LEFT  JOIN {$wpdb->users} student 
-					ON gradebook_result.user_id = student.ID
-			WHERE gradebook_result.result_for = %s {$filter_sql} ;", //phpcs:ignore
-			'final'
-		)
-	);
-
-	//phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$gradebooks['res'] = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT gradebook_result.*, 
-			(SELECT COUNT(quizzes.quiz_id) FROM {$wpdb->tutor_gradebooks_results} quizzes WHERE quizzes.user_id = gradebook_result.user_id AND quizzes.course_id = gradebook_result.course_id AND quizzes.result_for = 'quiz') as quiz_count,
-			(SELECT COUNT(assignments.assignment_id) FROM {$wpdb->tutor_gradebooks_results} assignments WHERE assignments.user_id = gradebook_result.user_id AND assignments.course_id = gradebook_result.course_id AND assignments.result_for = 'assignment') as assignment_count,
-			grade_config,
-			student.display_name,
-			course.post_title as course_title
-			FROM {$wpdb->tutor_gradebooks_results} gradebook_result
-				LEFT JOIN {$wpdb->tutor_gradebooks} gradebook ON gradebook_result.gradebook_id = gradebook.gradebook_id
-				LEFT JOIN {$wpdb->posts} course ON gradebook_result.course_id = course.ID
-				LEFT  JOIN {$wpdb->users} student ON gradebook_result.user_id = student.ID
-			WHERE gradebook_result.result_for = %s {$filter_sql} 
-			ORDER BY gradebook_result.generate_date {$order}
-			LIMIT %d, %d",
-			'final',
-			$start,
-			$limit
-		)
-	);
-	//phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-	$gradebooks = (object) $gradebooks;
-
-	return $gradebooks;
 }
 
 if ( ! function_exists( 'tutor_pro_email_global_footer' ) ) {
@@ -522,5 +555,63 @@ if ( ! function_exists( 'is_tutor_pro_in_wpdc_env' ) ) {
 	 */
 	function is_tutor_pro_in_wpdc_env() {
 		return defined( 'IS_ATOMIC' ) && IS_ATOMIC && defined( 'ATOMIC_CLIENT_ID' ) && '2' === ATOMIC_CLIENT_ID;
+	}
+}
+
+if ( ! function_exists( 'get_gradebook_results_by_course_id' ) ) {
+
+	/**
+	 * Retrieve gradebook results for a specific course.
+	 *
+	 * @since 3.8.1
+	 *
+	 * @global wpdb $wpdb WordPress database abstraction object.
+	 *
+	 * @param int $course_id The ID of the course to retrieve gradebook results.
+	 *
+	 * @return array An array of gradebook result objects. Empty array on error.
+	 */
+	function get_gradebook_results_by_course_id( $course_id ) {
+
+		global $wpdb;
+
+		$result = QueryHelper::get_all( $wpdb->tutor_gradebooks_results, array( 'course_id' => $course_id ), 'course_id', -1 );
+
+		if ( empty( $result ) ) {
+			return array();
+		}
+
+		return $result;
+	}
+}
+
+if ( ! function_exists( 'get_gradebook_settings' ) ) {
+
+	/**
+	 * Retrieve all gradebook settings.
+	 *
+	 * @since 3.8.1
+	 *
+	 * @global wpdb $wpdb WordPress database abstraction object.
+	 *
+	 * @return array An array of gradebook settings objects. Empty array on error.
+	 */
+	function get_gradebook_settings() {
+
+		global $wpdb;
+
+		$result = $wpdb->get_results(
+			"SELECT 
+					*
+				FROM 
+					{$wpdb->tutor_gradebooks}"
+		);
+
+		if ( $wpdb->last_error ) {
+			tutor_log( 'Error While getting gradebook settings from ' . __FUNCTION__ . ' : ' . $wpdb->last_error );
+			return array();
+		}
+
+		return $result;
 	}
 }

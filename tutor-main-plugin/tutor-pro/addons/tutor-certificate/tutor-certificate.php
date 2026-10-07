@@ -60,5 +60,5 @@ if ( ! function_exists( 'TUTOR_CERT' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_CERT\Init();

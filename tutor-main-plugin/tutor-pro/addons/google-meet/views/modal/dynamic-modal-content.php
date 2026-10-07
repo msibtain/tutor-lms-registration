@@ -26,24 +26,24 @@ $course_id = $event->post_parent;
 
 ?>
 
-<div class="tutor-modal tutor-modal-scrollable" id="<?php echo esc_attr( $data['modal_id'] ); ?>">
+<div class="tutor-modal tutor-modal-scrollable" id="<?php echo esc_attr( $data['modal_id'] ); ?>" role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr( $data['modal_id'] ); ?>-title" aria-hidden="true">
 	<div class="tutor-modal-overlay"></div>
 	<div class="tutor-modal-window">
 		<div class="tutor-modal-content">
 				
 				<div class="tutor-modal-header">
-					<div class="tutor-modal-title">
+					<div id="<?php echo esc_attr( $data['modal_id'] ); ?>-title" class="tutor-modal-title">
 						<?php esc_html_e( 'Google Meet', 'tutor-pro' ); ?>       
 					</div>
-					<button class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close="">
-						<span class="tutor-icon-times" area-hidden="true"></span>
+					<button type="button" class="tutor-iconic-btn tutor-modal-close" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+						<span class="tutor-icon-times" aria-hidden="true"></span>
 					</button>
 				</div>
 				<div class="tutor-modal-body tutor-modal-container">
 					<div class="tutor-google-meet-form-controls">
                         <?php tutor_nonce_field(); ?>
 						<input type="hidden" name="post-id" value="<?php echo esc_attr( $event->ID ); ?>">
-						<input type="hidden" name="course_id" value="<?php echo esc_attr( $course_id ); ?>">
+						<input type="hidden" name="object_id" value="<?php echo esc_attr( $course_id ); ?>">
 						<input type="hidden" name="event-id" value="<?php echo esc_attr( $event_id ); ?>">
 						<input type="hidden" name="attendees" value="<?php echo 'Yes' === $details->attendees ? 'Yes' : 'No'; ?>">
 						<div class="tutor-mb-16">
@@ -67,7 +67,7 @@ $course_id = $event->post_parent;
 
 							<div class="tutor-gmi-meeting-time">
 								<div>
-									<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="<?php echo esc_attr( $details->start_datetime ? tutor_get_formated_date( 'd-m-Y', $details->start_datetime ) : '' ); ?>" tutor-disable-past-date></div>
+									<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-start-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_start_date" data-input_value="<?php echo esc_attr( $details->start_datetime ? tutor_get_formated_date( 'd-m-Y', $details->start_datetime ) : '' ); ?>" data-disable_past_date="1"></div>
 									<div class="tutor-form-wrap">
 										<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-start-time"></span>
 										<input type="text" name="meeting_start_time" class="tutor-form-control tutor-google-meet-timepicker" data-name="meeting_time" autocomplete="off" placeholder="HH:MM PM" value="<?php echo esc_attr( $details->start_datetime ? tutor_get_formated_date( 'h:i A', $details->start_datetime ) : '' ); ?>" >
@@ -75,7 +75,7 @@ $course_id = $event->post_parent;
 								</div>
 								<span class="tutor-icon-minus-o tutor-icon-minus-o tutor-fs-6"></span>
 								<div>
-									<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="<?php echo esc_attr( $details->end_datetime ? tutor_get_formated_date( 'd-m-Y', $details->end_datetime ) : '' ); ?>" tutor-disable-past-date></div>
+									<div class="tutor-v2-date-picker tutor-v2-date-picker-fd tutor-google-meet-end-date" style="width: 100%;" data-prevent_redirect="1" data-input_name="meeting_end_date" data-input_value="<?php echo esc_attr( $details->end_datetime ? tutor_get_formated_date( 'd-m-Y', $details->end_datetime ) : '' ); ?>" data-disable_past_date="1"></div>
 									<div class="tutor-form-wrap">
 										<span class="tutor-icon-clock-line tutor-form-icon tutor-form-icon-reverse tutor-google-meet-end-time"></span>
 										<input type="text" name="meeting_end_time" data-name="meeting_time" class="tutor-form-control tutor-google-meet-timepicker" autocomplete="off" placeholder="HH:MM PM" value="<?php echo esc_attr( $details->end_datetime ? tutor_get_formated_date( 'h:i A', $details->end_datetime ) : '' ); ?>">

@@ -9,24 +9,26 @@
  * @since 2.1.0
  */
 
+defined( 'ABSPATH' ) || exit;
+
 $transient_key = 'tutor_manual_enrollment_success';
 $modal_data    = get_transient( $transient_key );
 if ( false !== $modal_data ) :
 	?>
-<div id="modal-course-save-feedback" class="tutor-modal tutor-is-active">
+<div id="modal-course-save-feedback" class="tutor-modal tutor-is-active" role="dialog" aria-modal="true" aria-labelledby="tutor-enroll-success-title" aria-hidden="false">
 	<span class="tutor-modal-overlay"></span>
 	<div class="tutor-modal-window tutor-modal-window-sm">
 		<div class="tutor-modal-content tutor-modal-content-white">
-			<button class="tutor-iconic-btn tutor-modal-close-o" data-tutor-modal-close>
-				<span class="tutor-icon-times" area-hidden="true"></span>
+			<button type="button" class="tutor-iconic-btn tutor-modal-close-o" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+				<span class="tutor-icon-times" aria-hidden="true"></span>
 			</button>
 
 			<div class="tutor-modal-body">
 				<div class="tutor-text-center  tutor-mt-24 tutor-mb-16">
-					<img class="tutor-d-inline-block" src="<?php echo esc_url( TUTOR_ENROLLMENTS()->url . 'assets/images/complete.svg' ); ?>" alt="Enrollment complete">
+					<img class="tutor-d-inline-block" src="<?php echo esc_url( TUTOR_ENROLLMENTS()->url . 'assets/images/complete.svg' ); ?>" alt="<?php esc_html_e( 'Enrollment completed illustration', 'tutor-pro' ); ?>" aria-hidden="true">
 				</div>
 				<div class="tutor-d-flex tutor-flex-column tutor-gap-2">
-					<div class="tutor-fs-4 tutor-fw-medium tutor-color-black">
+					<div id="tutor-enroll-success-title" class="tutor-fs-4 tutor-fw-medium tutor-color-black">
 						<?php esc_html_e( 'Complete the Enrollment!', 'tutor-pro' ); ?>
 					</div>
 					<div class="tutor-fs-6 tutor-color-muted">

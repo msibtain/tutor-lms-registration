@@ -11,9 +11,7 @@
 
 namespace TUTOR_PMPRO;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 /**
  * Class Init
@@ -29,6 +27,8 @@ class Init {
 
 	/**
 	 * Constructor
+	 *
+	 * @since 1.3.5
 	 */
 	public function __construct() {
 		if ( ! function_exists( 'tutor' ) ) {
@@ -56,6 +56,8 @@ class Init {
 	/**
 	 * Load tutor pmpro
 	 *
+	 * @since 1.3.5
+	 *
 	 * @return void
 	 */
 	public function load_tutor_pmpro() {
@@ -65,6 +67,8 @@ class Init {
 
 	/**
 	 * Auto Load class and the files
+	 *
+	 * @since 1.3.5
 	 *
 	 * @param string $class_name class name.
 	 *

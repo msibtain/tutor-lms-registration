@@ -98,7 +98,7 @@ if ( ! class_exists( 'Weglot' ) ) {
 		public static function register_addon( array $addons ): array {
 			$new_addon = array(
 				'name'           => __( 'Weglot', 'tutor-pro' ),
-				'description'    => __( 'Translate & manage multilingual courses for global reach with full edit control.', 'tutor-pro' ),
+				'description'    => __( 'Translate & manage multilingual courses for global reach.', 'tutor-pro' ),
 				'depend_plugins' => array( 'weglot/weglot.php' => 'Weglot' ),
 				'disable_on_off' => true,
 			);

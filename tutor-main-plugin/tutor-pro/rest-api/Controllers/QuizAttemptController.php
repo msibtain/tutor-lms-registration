@@ -15,6 +15,7 @@ namespace TutorPro\RestAPI\Controllers;
 use Exception;
 use Tutor\Helpers\ValidationHelper;
 use TUTOR\Input;
+use Tutor\Models\EnrollmentModel;
 use Tutor\Models\QuizModel;
 use TUTOR\Quiz;
 use WP_REST_Request;
@@ -115,7 +116,7 @@ class QuizAttemptController extends BaseController {
 			$errors = $validation->errors;
 		}
 
-		if ( ! tutor_utils()->is_enrolled( $params['course_id'], $params['student_id'] ) ) {
+		if ( ! EnrollmentModel::is_enrolled( $params['course_id'], $params['student_id'] ) ) {
 			$errors['enrollment'] = __( 'You are not enrolled in this course', 'tutor-pro' );
 		}
 

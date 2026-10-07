@@ -38,7 +38,7 @@ use TUTOR_EMAIL\ManualEmail;
 		}
 	);
 
-	require TUTOR_EMAIL()->path . 'views/email_styles.php';
+	require TUTOR()->path . 'templates/email/email_styles.php';
 	?>
 </head>
 

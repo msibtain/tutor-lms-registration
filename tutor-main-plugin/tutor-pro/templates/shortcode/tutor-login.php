@@ -27,10 +27,10 @@ add_filter(
 
 <?php do_action( 'tutor/template/login/before/wrap' ); ?>
 <div <?php tutor_post_class( 'tutor-page-wrap' ); ?>>
-	<div class="tutor-template-segment tutor-login-wrap">
-		<div class="tutor-login-form-wrapper">
-			<div class="tutor-fs-5 tutor-color-black tutor-mb-32">
-				<?php esc_html_e( 'Hi, Welcome back!', 'tutor' ); ?>
+	<div class="tutor-template-segment tutor-login-wrap tutor-card tutor-shadow-md tutor-px-none tutor-py-9" style="max-width: 100%; width : 520px; margin: 40px auto;">
+		<div class="tutor-login-form-wrapper tutor-p-8">
+			<div class="tutor-h3 tutor-font-medium tutor-mb-9">
+				<?php esc_html_e( 'Hi, Welcome back!', 'tutor-pro' ); ?>
 			</div>
 			<?php
 				$login_form = trailingslashit( tutor()->path ) . 'templates/login-form.php';

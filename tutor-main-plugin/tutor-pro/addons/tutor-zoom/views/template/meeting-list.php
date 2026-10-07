@@ -15,8 +15,8 @@ is_admin() ? $context = 'backend-dashboard' : '';
 $table_columns = include __DIR__ . '/contexts.php';
 $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 ?>
-<div class="tutor-table-responsive tutor-mb-24">
-	<table class="tutor-table tutor-table-zoom">
+<div class="tutor-table-responsive tutor-dashboard-list-table">
+	<table class="tutor-table tutor-table-middle">
 		<thead>
 			<tr>
 				<?php foreach ( $table_columns as $key => $column ) : ?>
@@ -132,7 +132,7 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 											<div class="tutor-dropdown-parent">
 												<button class="tutor-btn tutor-btn-outline-primary tutor-btn-md" action-tutor-dropdown="toggle">
 													<span><?php esc_html_e( 'Info', 'tutor-pro' ); ?></span>
-													<span class="tutor-icon-angle-down tutor-fs-7 tutor-ml-4" area-hidden="true"></span>
+													<span class="tutor-icon-angle-down tutor-fs-7 tutor-ml-4" aria-hidden="true"></span>
 												</button>
 
 												<ul class="tutor-dropdown" style="width: 280px;">
@@ -145,7 +145,7 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 														</div>
 														<div class="tutor-ml-auto">
 															<button class="tutor-iconic-btn" data-tutor-copy-target="<?php echo esc_attr( $copy_target_id ); ?>">
-																<span class="tutor-icon-copy-text" area-hidden="true"></span>
+																<span class="tutor-icon-copy-text" aria-hidden="true"></span>
 															</button>
 														</div>
 													</div>
@@ -159,12 +159,12 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 														</div>
 														<div class="tutor-ml-auto">
 															<button class="tutor-iconic-btn" data-tutor-copy-target="<?php echo esc_attr( $copy_target_id ); ?>-2">
-																<span class="tutor-icon-copy-text" area-hidden="true"></span>
+																<span class="tutor-icon-copy-text" aria-hidden="true"></span>
 															</button>
 														</div>
 													</div>
 
-													<div class="tutor-hr" area-hidden="true"></div>
+													<div class="tutor-hr" aria-hidden="true"></div>
 
 													<div class="tutor-px-24 tutor-py-12 tutor-mt-8">
 														<div class="tutor-fs-7 tutor-color-muted"><?php esc_html_e( 'Host Email', 'tutor-pro' ); ?></div>
@@ -177,18 +177,18 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 
 											<div class="tutor-dropdown-parent">
 												<button type="button" class="tutor-iconic-btn" action-tutor-dropdown="toggle">
-													<span class="tutor-icon-kebab-menu" area-hidden="true"></span>
+													<span class="tutor-icon-kebab-menu" aria-hidden="true"></span>
 												</button>
 												<ul class="tutor-dropdown tutor-dropdown-dark tutor-text-left">
 													<li>
 														<a href="#" class="tutor-dropdown-item" data-tutor-modal-target="tutor-zoom-meeting-modal-<?php echo esc_attr( $meeting->ID ); ?>">
-															<i class="tutor-icon-edit tutor-mr-8" area-hidden="true"></i>
+															<i class="tutor-icon-edit tutor-mr-8" aria-hidden="true"></i>
 															<spa><?php esc_html_e( 'Edit', 'tutor-pro' ); ?></span>
 														</a>
 													</li>
 													<li>
 														<a href="#" class="tutor-dropdown-item" data-tutor-modal-target="<?php echo esc_attr( $id_string_delete ); ?>">
-															<i class="tutor-icon-trash-can-bold tutor-mr-8" area-hidden="true"></i>
+															<i class="tutor-icon-trash-can-bold tutor-mr-8" aria-hidden="true"></i>
 															<span><?php esc_html_e( 'Delete', 'tutor-pro' ); ?></span>
 														</a>
 													</li>
@@ -226,7 +226,7 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 
 							case 'action_backend':
 								$button_text  = __( 'Start Meeting', 'tutor-pro' );
-								$button_class = 'tutor-btn tutor-btn-primary tutor-btn-md tutor-mr-12';
+								$button_class = 'tutor-btn tutor-btn-primary tutor-btn-md tutor-mr-12 tutor-ws-nowrap';
 								if ( $meeting->is_expired ) {
 									$button_text  = __( 'Expired', 'tutor-pro' );
 									$button_class = 'tutor-btn tutor-btn-outline-primary tutor-btn-md tutor-mr-12';
@@ -237,17 +237,17 @@ $zoom_object   = new \TUTOR_ZOOM\Zoom( false );
 								?>
 								<td>
 									<div class="tutor-d-flex tutor-align-center tutor-justify-end">
-										<div class="tutor-flex-wrap tutor-d-inline-flex tutor-align-center td-action-btns">
+										<div class="tutor-d-inline-flex tutor-align-center td-action-btns">
 											<a href="<?php echo ! $meeting->is_expired ? esc_url( $meeting_data['start_url'] ) : 'javascript:void(0)'; ?>" class="<?php echo esc_attr( $button_class ); ?>" <?php echo ! $meeting->is_expired ? 'target="_blank"' : 'disabled="disabled"'; ?>>
 												<i class="tutor-icon-brand-zoom tutor-mr-8"></i> <?php echo esc_html( $button_text ); ?>
 											</a>
 
-											<a href="#" class="tutor-btn tutor-btn-outline-primary tutor-btn-md" data-tutor-modal-target="tutor-zoom-meeting-modal-<?php echo esc_attr( $meeting->ID ); ?>">
+											<a href="#" class="tutor-btn tutor-btn-outline-primary tutor-btn-md tutor-mr-4" data-tutor-modal-target="tutor-zoom-meeting-modal-<?php echo esc_attr( $meeting->ID ); ?>">
 												<?php esc_html_e( 'Edit', 'tutor-pro' ); ?>
 											</a>
 
 											<a href="#" class="tutor-iconic-btn" data-tutor-modal-target="<?php echo esc_attr( $id_string_delete ); ?>">
-												<i class="tutor-icon-trash-can-line" area-hidden="true"></i>
+												<i class="tutor-icon-trash-can-line" aria-hidden="true"></i>
 											</a>
 										</div>
 									</div>

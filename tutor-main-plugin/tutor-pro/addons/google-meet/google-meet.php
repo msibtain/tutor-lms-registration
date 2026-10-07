@@ -18,7 +18,6 @@ use TutorPro\GoogleMeet\CustomPosts\InitPostTypes;
 use TutorPro\GoogleMeet\Frontend\Frontend;
 use TutorPro\GoogleMeet\GoogleEvent\Events;
 use TutorPro\GoogleMeet\GoogleEvent\GoogleEvent;
-use TutorPro\GoogleMeet\MetaBox\MetaBox;
 use TutorPro\GoogleMeet\Settings\Settings;
 use TutorPro\GoogleMeet\TopicsEvent\TopicsEvent;
 use TutorPro\GoogleMeet\Validator\Validator;

@@ -9,6 +9,7 @@
  */
 
 use TutorPro\GoogleMeet\GoogleMeet;
+use Tutor\Helpers\DateTimeHelper;
 
 $meeting       = $data['meeting'];
 $event_details = $data['event_details'];
@@ -40,8 +41,8 @@ $plugin_data   = GoogleMeet::meta_data();
 				<span>
 					<?php esc_html_e( 'Meeting Date:', 'tutor-pro' ); ?>
 				</span>
-				<p class="tutor-fw-medium tutor-color-black">
-					<?php echo esc_html( tutor_i18n_get_formated_date( $event_details->start_datetime ) ); ?>
+				<p class="tutor-fw-medium tutor-color-black tutor-utc-date-time">
+					<?php echo esc_html( DateTimeHelper::create( $event_details->start_datetime, $event_details->timezone )->set_timezone( 'UTC' )->format( 'Y-m-d H:i:s' ) ); ?>
 				</p>
 			</div>
 			<div>

@@ -19,7 +19,7 @@ use Tutor\Models\OrderModel;
 
 	<div class="tutor-report-sales-data-table tutor-mt-24">
 		<?php if ( is_array( $lists ) && count( $lists ) ) : ?>
-			<div class="tutor-table-responsive">
+			<div class="tutor-table-responsive tutor-dashboard-list-table">
 				<table class="tutor-table tutor-table-middle">
 					<thead>
 						<tr>
@@ -69,7 +69,7 @@ use Tutor\Models\OrderModel;
 									<div class="tutor-d-flex tutor-align-center tutor-gap-1">
 										<?php echo esc_html( get_the_title( $report->post_parent ) ); ?>
 										<a href="<?php echo esc_url( get_permalink( $report->post_parent ) ); ?>" class="tutor-iconic-btn" target="_blank">
-											<span class="tutor-icon-external-link" area-hidden="true"></span>
+											<span class="tutor-icon-external-link" aria-hidden="true"></span>
 										</a>
 									</div>
 								</td>
@@ -94,15 +94,14 @@ use Tutor\Models\OrderModel;
 									<?php
 									if ( tutor_utils()->is_monetize_by_tutor() ) {
 										$order_details = ( new OrderModel() )->get_order_by_id( $report->order_id );
-										$item_id       = OrderModel::TYPE_SUBSCRIPTION === $order_details->order_type
-															// Plan ID.
-															? $order_details->items[0]->id ?? 0
-															// Course ID.
-															: $report->post_parent;
+
+										$item_id = $report->post_parent;
+										if ( is_object( $order_details ) && property_exists( $order_details, 'order_type' ) && OrderModel::TYPE_SUBSCRIPTION === $order_details->order_type ) {
+											$item_id = $order_details->items[0]->id ?? 0;
+										}
 
 										$price = OrderModel::get_item_sold_price( $item_id, false );
 									}
-
 									echo wp_kses_post( tutor_utils()->tutor_price( $price ) );
 									?>
 								</td>
@@ -112,7 +111,7 @@ use Tutor\Models\OrderModel;
 				</table>
 			</div>
 		<?php else : ?>
-			<?php tutor_utils()->tutor_empty_state( tutor_utils()->not_found_text() ); ?>
+			<?php tutor_utils()->render_list_empty_state(); ?>
 		<?php endif; ?>
 	</div>
 

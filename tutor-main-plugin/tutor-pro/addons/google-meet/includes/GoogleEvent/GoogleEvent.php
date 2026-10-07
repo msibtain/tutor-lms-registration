@@ -9,13 +9,20 @@
 
 namespace TutorPro\GoogleMeet\GoogleEvent;
 
+use Tutor\Helpers\UrlHelper;
+use TUTOR\Input;
+use Tutor\Traits\JsonResponse;
+use TUTOR_PRO\Dashboard;
 use TutorPro\GoogleMeet\GoogleMeet;
+use TutorPro\GoogleMeet\Utilities\Utilities;
 use TutorPro\GoogleMeet\Validator\Validator;
 
 /**
  * Manage google events
  */
 class GoogleEvent {
+
+	use JsonResponse;
 
 	/**
 	 * Credential filename.
@@ -76,7 +83,7 @@ class GoogleEvent {
 	/**
 	 * Redirect URI
 	 *
-	 * @var string
+	 * @var array
 	 */
 	public $google_callback_url;
 
@@ -95,7 +102,6 @@ class GoogleEvent {
 	private $required_scopes = array(
 		\Google_Service_Calendar::CALENDAR,
 		\Google_Service_Calendar::CALENDAR_EVENTS,
-		// 'https://www.googleapis.com/auth/userinfo.email',
 	);
 
 	/**
@@ -111,6 +117,8 @@ class GoogleEvent {
 	 * @since v2.1.0
 	 */
 	public function __construct() {
+		add_action( 'template_redirect', array( $this, 'handle_google_callback' ), 99 );
+
 		$owner_id               = null;
 		$this->current_calendar = 'primary';
 		$this->tutor_json_dir   = 'tutor-json';
@@ -140,16 +148,43 @@ class GoogleEvent {
 			$this->token_path = $token_path;
 		}
 
-		$this->google_callback_url = admin_url() . 'admin.php?page=google-meet&tab=set-api';
+		$this->google_callback_url = array( admin_url() . 'admin.php?page=google-meet&tab=set-api' );
+
+		if ( ! is_admin() ) {
+			global $wp_rewrite;
+
+			if ( null === $wp_rewrite ) {
+				$wp_rewrite = new \WP_Rewrite();
+			}
+
+			$this->google_callback_url = array(
+				tutor_utils()->tutor_dashboard_url( 'google-meet/set-api' ),
+				UrlHelper::add_query_params(
+					tutor_utils()->tutor_dashboard_url( Dashboard::LIVE_CLASSES_MENU ),
+					array(
+						'nav' => Utilities::GOOGLE_MEET_TAB,
+						'tab' => 'set-api',
+					)
+				),
+			);
+		}
 
 		if ( $this->is_credential_loaded() ) {
 			try {
 				$this->validate_json_service_account_file( $credential_path );
 
+				$data          = file_get_contents( $credential_path );
+				$json          = json_decode( $data, true );
+				$web           = $json['web'] ?? array();
+				$redirect_uris = $web['redirect_uris'] ?? array();
+
+				$has_redirect_uri = array_intersect( $this->google_callback_url, $redirect_uris );
+				$has_redirect_uri = array_values( $has_redirect_uri );
+
 				$this->client = new \Google_Client();
 				$this->client->setApplicationName( $this->app_name );
 				$this->client->setAuthConfig( $this->credential_path );
-				$this->client->setRedirectUri( $this->google_callback_url );
+				$this->client->setRedirectUri( $has_redirect_uri[0] ?? $this->google_callback_url[0] );
 				$this->client->addScope( $this->required_scopes );
 				$this->client->setAccessType( 'offline' );
 				$this->client->setApprovalPrompt( 'force' );
@@ -167,7 +202,7 @@ class GoogleEvent {
 				if ( is_admin() ) {
 					add_action(
 						'admin_notices',
-						function() use ( $th ) {
+						function () use ( $th ) {
 							printf(
 								'<div class="%1$s"><p>%2$s</p></div>',
 								esc_attr( 'notice notice-error is-dismissible' ),
@@ -180,6 +215,39 @@ class GoogleEvent {
 		}
 
 		add_action( 'wp_ajax_tutor_pro_google_meet_credential_upload', array( $this, 'upload_credentials' ) );
+	}
+
+	/**
+	 * Handle google redirect uri after getting token.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @return void
+	 */
+	public function handle_google_callback() {
+		$url       = get_pagenum_link( 1, false );
+		$match_url = explode( '?', $url )[0];
+		if ( ! in_array( rtrim( $match_url, '/' ), $this->google_callback_url, true ) ) {
+			return;
+		}
+		$code = Input::get( 'code', '' );
+
+		if ( empty( $code ) ) {
+			return;
+		}
+
+		$call_back_url = UrlHelper::add_query_params(
+			tutor_utils()->tutor_dashboard_url( Dashboard::LIVE_CLASSES_MENU ),
+			array(
+				'nav' => Utilities::GOOGLE_MEET_TAB,
+				'tab' => 'set-api',
+			)
+		);
+
+		$call_back_url = UrlHelper::add_query_params( $call_back_url, array( 'code' => $code ) );
+		wp_safe_redirect( $call_back_url );
+
+		exit;
 	}
 
 	/**
@@ -264,7 +332,7 @@ class GoogleEvent {
 	 */
 	public function upload_credentials( $file ) {
 		if ( ! Validator::current_user_has_access() ) {
-			wp_send_json_error( tutor_utils()->error_message() );
+			$this->response_bad_request( tutor_utils()->error_message() );
 		}
 
 		$credential_path = $this->upload_dir . $this->credential_filename;
@@ -272,12 +340,12 @@ class GoogleEvent {
 		try {
 			if ( isset( $_FILES['file'] ) && isset( $_FILES['file']['tmp_name'] ) ) {
 				if ( ! is_writable( $this->upload_dir ) ) {
-					wp_send_json_error( __( 'Upload directory is not writable', 'tutor-pro' ) );
+					$this->response_bad_request( __( 'Upload directory is not writable', 'tutor-pro' ) );
 				}
 
 				$filetype = wp_check_filetype( $_FILES['file']['name'], array( 'json' => 'application/json' ) );
 				if ( false === $filetype['ext'] ) {
-					wp_send_json_error( __( 'Invalid file type selected', 'tutor-pro' ) );
+					$this->response_bad_request( __( 'Invalid file type selected', 'tutor-pro' ) );
 				}
 
 				$overrides = array(
@@ -291,9 +359,9 @@ class GoogleEvent {
 				remove_filter( 'upload_dir', array( $this, 'filter_upload_dir' ), PHP_INT_MAX );
 
 				if ( $upload && ! isset( $upload['error'] ) ) {
-					wp_send_json_success( __( 'Credential uploaded successfully!', 'tutor-pro' ) );
+					$this->response_success( __( 'Credential uploaded successfully!', 'tutor-pro' ) );
 				} else {
-					wp_send_json_error( $upload['error'] ?? __( 'Credential upload failed, please try again!', 'tutor-pro' ) );
+					$this->response_bad_request( $upload['error'] ?? __( 'Credential upload failed, please try again!', 'tutor-pro' ) );
 				}
 			}
 		} catch ( \Throwable $th ) {
@@ -302,7 +370,7 @@ class GoogleEvent {
 				unlink( $credential_path );
 			}
 
-			wp_send_json_error( $th->getMessage() );
+			$this->response_bad_request( $th->getMessage() );
 		}
 	}
 

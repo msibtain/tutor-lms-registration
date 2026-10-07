@@ -9,8 +9,10 @@
  * @since 1.3.5
  */
 
+defined( 'ABSPATH' ) || exit;
+
 ?>
-<div id="tutor-pmpro-setting-wrapper" style="background: white; padding: 10px 20px;">
+<div id="tutor-pmpro-setting-wrapper">
 	<h3><?php esc_html_e( 'Tutor LMS Content Settings', 'tutor-pro' ); ?></h3>
 
 	<?php
@@ -24,7 +26,7 @@
 	 */
 	function generate_categories_for_pmpro( $cats, $level_categories = array() ) {
 
-		if ( ! count( $cats ) ) {
+		if ( ! tutor_utils()->count( $cats ) ) {
 			return;
 		}
 

@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 	<div class="tutor-report-students-data-table tutor-mt-24">
 		<?php if ( is_array( $lists ) && count( $lists ) ) : ?>
-			<div class="tutor-table-responsive">
+			<div class="tutor-table-responsive tutor-dashboard-list-table">
 				<table class="tutor-table tutor-table-middle table-dashboard-course-list">
 					<thead>
 						<tr>
@@ -58,7 +58,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 										<?php echo wp_kses( tutor_utils()->get_tutor_avatar( $student->ID ), tutor_utils()->allowed_avatar_tags() ); ?>
 										<?php echo esc_html( $student->display_name ); ?>
 										<a href="<?php echo esc_url( tutor_utils()->profile_url( $student->ID, false ) ); ?>" class="tutor-iconic-btn" target="_blank">
-											<span class="tutor-icon-external-link" area-hidden="true"></span>
+											<span class="tutor-icon-external-link" aria-hidden="true"></span>
 										</a>
 									</div>
 								</td>
@@ -88,7 +88,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 			</div>
 		</div>
 	<?php else : ?>
-		<?php tutor_utils()->tutor_empty_state( tutor_utils()->not_found_text() ); ?>
+		<?php tutor_utils()->render_list_empty_state(); ?>
 	<?php endif; ?>
 	<div class="tutor-report-students-data-table-pagination tutor-report-content-common-pagination tutor-mt-32">
 		<?php

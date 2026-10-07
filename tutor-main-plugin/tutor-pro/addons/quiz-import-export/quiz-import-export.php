@@ -29,8 +29,8 @@ add_filter( 'tutor_addons_lists_config', 'tutor_quiz_import_export_config' );
  */
 function tutor_quiz_import_export_config( $config ) {
 	$new_config   = array(
-		'name'        => __( 'Quiz Export/Import', 'quiz-import-export' ),
-		'description' => __( 'Save time by exporting/importing quiz data with easy options.', 'quiz-import-export' ),
+		'name'        => __( 'Quiz Export/Import', 'tutor-pro' ),
+		'description' => __( 'Save time by exporting/importing quiz data with easy options.', 'tutor-pro' ),
 	);
 	$basic_config = (array) QUIZ_IMPORT_EXPORT();
 	$new_config   = array_merge( $new_config, $basic_config );
@@ -60,5 +60,5 @@ if ( ! function_exists( 'QUIZ_IMPORT_EXPORT' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new \QUIZ_IMPORT_EXPORT\Init();

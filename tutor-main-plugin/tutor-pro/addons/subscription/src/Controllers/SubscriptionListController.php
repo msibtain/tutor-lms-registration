@@ -44,6 +44,15 @@ class SubscriptionListController {
 	public $subscription_model;
 
 	/**
+	 * Subscription page slug.
+	 *
+	 * @since 3.2.0
+	 *
+	 * @var string
+	 */
+	const PAGE_SLUG = 'tutor-subscriptions';
+
+	/**
 	 * Order model.
 	 *
 	 * @var OrderModel
@@ -75,7 +84,7 @@ class SubscriptionListController {
 	public function __construct( $register_hooks = true ) {
 		$this->subscription_model = new SubscriptionModel();
 		$this->order_model        = new OrderModel();
-		$this->order_ctrl         = new OrderController();
+		$this->order_ctrl         = new OrderController( false );
 		$this->plan_model         = new PlanModel();
 
 		if ( ! $register_hooks ) {
@@ -110,11 +119,13 @@ class SubscriptionListController {
 	 * @return array
 	 */
 	public function tabs_key_value(): array {
-		$url = get_pagenum_link();
+		global $wpdb;
+		$url = apply_filters( 'tutor_data_tab_base_url', get_pagenum_link() );
 
-		$date   = Input::get( 'date', '' );
-		$search = Input::get( 'search', '' );
-		$status = Input::get( 'status', '' );
+		$date              = Input::get( 'date', '' );
+		$search            = Input::get( 'search', '' );
+		$status            = Input::get( 'status', '' );
+		$subscription_type = Input::get( 'subscription-type', '' );
 
 		$where = array();
 
@@ -126,18 +137,54 @@ class SubscriptionListController {
 			$where['status'] = $status;
 		}
 
-		if ( ! User::is_admin() ) {
-			$where['user_id'] = get_current_user_id();
+		if ( ! empty( $subscription_type ) ) {
+			$where['plan_type'] = $subscription_type;
+		}
+
+		$where['user_id'] = get_current_user_id();
+		// WP Admin: user_id removed from WHERE clause to show all subscriptions for admin.
+		if ( is_admin() && User::is_admin() ) {
+			unset( $where['user_id'] );
 		}
 
 		$tabs = array();
 
 		$tabs [] = array(
-			'key'   => 'all',
+			'key'   => '',
 			'title' => __( 'All', 'tutor-pro' ),
 			'value' => $this->subscription_model->get_subscription_count( $where, $search ),
 			'url'   => $url . '&data=all',
 		);
+
+		// Manual subscription tab.
+		if ( is_admin() ) {
+			$join_tables = array(
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->users} u",
+					'on'    => 's.user_id = u.ID',
+				),
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->prefix}tutor_subscription_plans p",
+					'on'    => 's.plan_id = p.id',
+				),
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->prefix}tutor_orders o",
+					'on'    => 's.first_order_id = o.id',
+				),
+			);
+
+			$where['o.payment_method'] = OrderModel::PAYMENT_METHOD_MANUAL;
+			$tabs[]                    = array(
+				'key'   => 'manual_subscription',
+				'title' => __( 'Manual Subscription', 'tutor-pro' ),
+				'value' => $this->subscription_model->get_subscription_count( $where, $search, $join_tables ),
+				'url'   => $url . '&data=manual_subscription',
+			);
+			unset( $where['o.payment_method'] );
+		}
 
 		$subscription_status = array(
 			$this->subscription_model::STATUS_PENDING   => __( 'Pending', 'tutor-pro' ),
@@ -172,9 +219,16 @@ class SubscriptionListController {
 	 * @return array
 	 */
 	public function get_list( $per_page = 10, $current_page = 1 ) {
-		$active_tab  = Input::get( 'data', 'all' );
-		$date        = Input::get( 'date', '' );
-		$search_term = Input::get( 'search', '' );
+		global $wpdb;
+
+		$active_tab        = Input::get( 'data', 'all' );
+		$date              = Input::get( 'date' );
+		$search_term       = Input::get( 'search', '' );
+		$order             = Input::get( 'order', 'DESC' );
+		$subscription_type = Input::get( 'subscription-type', '' );
+
+		$start_date = Input::get( 'start_date' );
+		$end_date   = Input::get( 'end_date' );
 
 		$where_clause = array();
 
@@ -182,15 +236,49 @@ class SubscriptionListController {
 			$where_clause['date(s.next_payment_date_gmt)'] = tutor_get_formated_date( '', $date );
 		}
 
-		if ( 'all' !== $active_tab ) {
+		if ( $start_date && $end_date ) {
+			$where_clause['date(s.next_payment_date_gmt)'] = array( 'BETWEEN', array( $start_date, $end_date ) );
+		}
+
+		if ( $subscription_type ) {
+			$where_clause['p.plan_type'] = $subscription_type;
+		}
+
+		if ( 'all' !== $active_tab && 'manual_subscription' !== $active_tab ) {
 			$where_clause['s.status'] = $active_tab;
 		}
 
-		if ( ! User::is_admin() ) {
-			$where_clause['s.user_id'] = get_current_user_id();
+		$where_clause['s.user_id'] = get_current_user_id();
+		// WP Admin: user_id removed from WHERE clause to show all subscriptions for admin.
+		if ( is_admin() && User::is_admin() ) {
+			unset( $where_clause['s.user_id'] );
 		}
 
-		return $this->subscription_model->get_subscriptions( $where_clause, $search_term, $per_page, $current_page );
+		if ( 'manual_subscription' === $active_tab ) {
+			$joining_tables = array(
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->users} u",
+					'on'    => 's.user_id = u.ID',
+				),
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->prefix}tutor_subscription_plans p",
+					'on'    => 's.plan_id = p.id',
+				),
+				array(
+					'type'  => 'LEFT',
+					'table' => "{$wpdb->prefix}tutor_orders o",
+					'on'    => 's.first_order_id = o.id',
+				),
+			);
+
+			$where_clause['o.payment_method'] = OrderModel::PAYMENT_METHOD_MANUAL;
+
+			return $this->subscription_model->get_subscriptions( $where_clause, $search_term, $per_page, $current_page, 's.id', $order, $joining_tables );
+		}
+
+		return $this->subscription_model->get_subscriptions( $where_clause, $search_term, $per_page, $current_page, 's.id', $order );
 	}
 
 	/**
@@ -226,6 +314,13 @@ class SubscriptionListController {
 			'value'  => $this->subscription_model::STATUS_HOLD,
 			'option' => __( 'Hold', 'tutor-pro' ),
 		);
+
+		if ( 'manual_subscription' === $active_tab ) {
+			$actions[] = array(
+				'value'  => 'renew',
+				'option' => __( 'Renew', 'tutor-pro' ),
+			);
+		}
 
 		if ( $this->subscription_model::STATUS_CANCELLED === $active_tab ) {
 			$actions = array(
@@ -311,6 +406,7 @@ class SubscriptionListController {
 			SubscriptionModel::STATUS_ACTIVE,
 			SubscriptionModel::STATUS_HOLD,
 			SubscriptionModel::STATUS_CANCELLED,
+			'renew',
 			'delete',
 		);
 
@@ -324,11 +420,11 @@ class SubscriptionListController {
 
 		$selected_records = $this->subscription_model->get_all( array( 'id' => $subscription_ids ) );
 		if ( ! is_array( $selected_records ) || empty( $selected_records ) ) {
-			$this->json_response(
-				tutor_utils()->error_message( 'invalid_req' ),
-				null,
-				HttpHelper::STATUS_BAD_REQUEST
-			);
+			$this->response_bad_request( tutor_utils()->error_message( 'invalid_req' ) );
+		}
+
+		if ( 'renew' === $bulk_action ) {
+			$this->bulk_renew_subscriptions( $selected_records );
 		}
 
 		if ( 'delete' === $bulk_action ) {
@@ -338,6 +434,70 @@ class SubscriptionListController {
 		}
 
 		$this->json_response( __( 'Bulk action completed', 'tutor-pro' ) );
+	}
+
+	/**
+	 * Renew bulk manual subscription from admin.
+	 *
+	 * @since 3.4.0
+	 *
+	 * @param array $subscriptions the subscription array.
+	 *
+	 * @return mixed
+	 */
+	private function bulk_renew_subscriptions( $subscriptions ) {
+		$renewal_order_ids = array();
+
+		foreach ( $subscriptions as $subscription ) {
+			$active_order_id = $subscription->active_order_id;
+			$old_order       = $this->order_model->get_order_by_id( $active_order_id );
+
+			if ( OrderModel::PAYMENT_METHOD_MANUAL !== $old_order->payment_method ) {
+				continue;
+			}
+
+			$plan = $this->plan_model->get_plan( $subscription->plan_id );
+
+			$items = array(
+				'item_id'        => $plan->id,
+				'regular_price'  => $plan->regular_price,
+				'sale_price'     => null,
+				'discount_price' => null,
+				'coupon_code'    => null,
+			);
+
+			$renewal_order_id = $this->order_ctrl->create_order(
+				$old_order->user_id,
+				$items,
+				OrderModel::PAYMENT_PAID,
+				OrderModel::TYPE_RENEWAL,
+				null,
+				array(
+					'parent_id'      => $subscription->first_order_id,
+					'payment_method' => OrderModel::PAYMENT_METHOD_MANUAL,
+					'note'           => __( 'Renewal order created for manual subscription', 'tutor-pro' ),
+				)
+			);
+
+			if ( $renewal_order_id ) {
+				$this->subscription_model->update(
+					$subscription->id,
+					array(
+						'active_order_id' => $renewal_order_id,
+					)
+				);
+
+				do_action( 'tutor_order_payment_status_changed', $renewal_order_id, OrderModel::PAYMENT_UNPAID, OrderModel::PAYMENT_PAID );
+
+				$renewal_order_ids[] = $renewal_order_id;
+			}
+		}
+
+		if ( count( $renewal_order_ids ) ) {
+			$this->json_response( __( 'Bulk action completed', 'tutor-pro' ) );
+		} else {
+			$this->response_bad_request( tutor_utils()->error_message( 'invalid_req' ) );
+		}
 	}
 
 	/**
@@ -376,15 +536,35 @@ class SubscriptionListController {
 	 * @return void
 	 */
 	public function on_subscription_status_changed( $id, $from_status, $to_status ) {
-		$subscription    = $this->subscription_model->get_subscription( $id );
-		$parent_order    = $this->subscription_model->get_parent_order( $id );
-		$enrollment_ids  = $this->order_model->get_enrollment_ids( $parent_order->id );
-		$has_enrollments = count( $enrollment_ids ) > 0;
+		if ( $from_status === $to_status ) {
+			return;
+		}
 
-		if ( SubscriptionModel::STATUS_ACTIVE === $to_status && $has_enrollments ) {
-			tutor_utils()->update_enrollments( 'completed', $enrollment_ids );
-		} elseif ( SubscriptionModel::STATUS_ACTIVE !== $to_status && $has_enrollments ) {
-			tutor_utils()->update_enrollments( 'cancel', $enrollment_ids );
+		$subscription = $this->subscription_model->get_subscription( $id );
+		$plan         = $this->plan_model->get_plan( $subscription->plan_id );
+
+		if ( ! $subscription || ! $plan ) {
+			return;
+		}
+
+		$enrollment_status = SubscriptionModel::STATUS_ACTIVE === $to_status ? 'completed' : 'cancel';
+		$this->subscription_model->update_subscription_enrollments_status( $subscription, $enrollment_status );
+
+		/**
+		 * Keep track trial used and trial enabled set zero.
+		 *
+		 * @since 3.4.0
+		 */
+		if ( in_array( $to_status, array( SubscriptionModel::STATUS_CANCELLED, SubscriptionModel::STATUS_EXPIRED ), true ) ) {
+			if ( ! empty( $subscription->trial_end_date_gmt ) && ! $subscription->is_trial_used ) {
+				$this->subscription_model->update(
+					$id,
+					array(
+						'is_trial_enabled' => 0,
+						'is_trial_used'    => 1,
+					)
+				);
+			}
 		}
 
 		if ( $from_status !== $to_status ) {

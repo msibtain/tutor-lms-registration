@@ -72,7 +72,7 @@ class EmailController {
 	public function __construct( $register_hooks = true ) {
 		$this->subscription_model = new SubscriptionModel();
 		$this->order_model        = new OrderModel();
-		$this->order_ctrl         = new OrderController();
+		$this->order_ctrl         = new OrderController( false );
 		$this->plan_model         = new PlanModel();
 		$this->email_notification = new EmailNotification( false );
 
@@ -87,6 +87,7 @@ class EmailController {
 		 * Handle e-mail events
 		 */
 		add_action( 'tutor_subscription_activated', array( $this, 'to_student_subscription_activated' ) );
+		add_action( 'tutor_subscription_activated', array( $this, 'to_student_subscription_trial_activated' ) );
 		add_action( 'tutor_subscription_renewed', array( $this, 'to_student_subscription_renewed' ) );
 		add_action( 'tutor_subscription_hold', array( $this, 'to_student_subscription_hold' ) );
 		add_action( 'tutor_subscription_cancelled', array( $this, 'to_student_subscription_cancelled' ) );
@@ -128,11 +129,23 @@ class EmailController {
 	 * @return array
 	 */
 	public function subscription_email_list( $list ) {
+		$list[ EmailNotification::TO_STUDENTS ]['subscription_trial_activated'] = array(
+			'label'        => __( 'Subscription Trial Activated', 'tutor-pro' ),
+			'default'      => 'on',
+			'template'     => 'to_student_subscription_trial_activated',
+			'tooltip'      => __( 'Email sent to student when new subscription trial get activated', 'tutor-pro' ),
+			'subject'      => __( 'Congratulations! Your {plan_name} Trial is Now Active!', 'tutor-pro' ),
+			'heading'      => __( 'Trial Access Starts Today!', 'tutor-pro' ),
+			'message'      => wp_json_encode( 'Welcome to <strong>{site_name}!</strong><br><br>We\'re excited to inform you that your trial period for the <strong>{plan_name}</strong> plan is active! You can now access the course materials, resources, and updates that come with this trial.<br><br>Thank you for choosing <strong>{site_name}</strong> and trusting us to be part of your learning experience. We hope you enjoy exploring the features and benefits during your trial period.' ),
+			'footer_text'  => __( 'This is an automated message. Please do not reply', 'tutor-pro' ),
+			'placeholders' => EmailPlaceholder::only( array( 'site_url', 'site_name', 'plan_name' ) ),
+		);
+
 		$list[ EmailNotification::TO_STUDENTS ]['subscription_activated'] = array(
 			'label'        => __( 'Subscription Activated', 'tutor-pro' ),
 			'default'      => 'on',
 			'template'     => 'to_student_subscription_activated',
-			'tooltip'      => 'Email sent to student when new subscription get activated',
+			'tooltip'      => __( 'Email sent to student when new subscription get activated', 'tutor-pro' ),
 			'subject'      => __( 'Congratulations! Your Subscription is Now Active!', 'tutor-pro' ),
 			'heading'      => __( 'Subscription activated!', 'tutor-pro' ),
 			'message'      => wp_json_encode( 'We\'re excited to inform you that your subscription to <strong>{plan_name}</strong> is now active! You can now access the course materials, resources, and updates that come with this subscription.<br><br>Thank you for choosing <strong>{site_name}</strong> and trusting us to be part of your learning experience' ),
@@ -144,7 +157,7 @@ class EmailController {
 			'label'        => __( 'Subscription on Hold', 'tutor-pro' ),
 			'default'      => 'on',
 			'template'     => 'to_student_subscription_hold',
-			'tooltip'      => 'Email sent to student when subscription on hold',
+			'tooltip'      => __( 'Email sent to student when subscription on hold', 'tutor-pro' ),
 			'subject'      => __( 'Your Subscription is Currently On Hold', 'tutor-pro' ),
 			'heading'      => __( 'Subscription on hold', 'tutor-pro' ),
 			'message'      => wp_json_encode( 'We wanted to inform you that your subscription to <strong>{plan_name}</strong> is currently on hold. This could be due to payment issues or other reasons.<br></br>We apologize for any inconvenience and look forward to serving you again soon. If you encounter any issues with purchasing the subscription, please reach out to us' ),
@@ -156,7 +169,7 @@ class EmailController {
 			'label'        => __( 'Subscription Renewed', 'tutor-pro' ),
 			'default'      => 'on',
 			'template'     => 'to_student_subscription_renewed',
-			'tooltip'      => 'Email sent to student when subscription is renewed',
+			'tooltip'      => __( 'Email sent to student when subscription is renewed', 'tutor-pro' ),
 			'subject'      => __( 'Your Subscription Has Been Renewed!', 'tutor-pro' ),
 			'heading'      => __( 'Subscription renewed!', 'tutor-pro' ),
 			'message'      => wp_json_encode( 'Your subscription to <strong>{plan_name}</strong> has been successfully renewed! <br><br> The updated subscription will be valid for <strong>{expiry_date}</strong>. You can now continue to access all the features and resources available on your subscription plan. <br><br>Thank you for your continued trust in <strong>{site_name}</strong>. If you have any queries or require assistance, please contact us.' ),
@@ -168,7 +181,7 @@ class EmailController {
 			'label'        => __( 'Subscription Expired', 'tutor-pro' ),
 			'default'      => 'on',
 			'template'     => 'to_student_subscription_expired',
-			'tooltip'      => 'Email sent to student when subscription is expired',
+			'tooltip'      => __( 'Email sent to student when subscription is expired', 'tutor-pro' ),
 			'subject'      => __( 'Your Subscription Has Expired', 'tutor-pro' ),
 			'heading'      => __( 'Subscription expired', 'tutor-pro' ),
 			'message'      => wp_json_encode( 'We wanted to inform you that your subscription to <strong>{plan_name}</strong> has expired. <br>This means your access to the course materials is no longer available. We hope you found the course valuable and made significant progress in your learning journey.<br><br>If you\'d like to renew your subscription, click the button below. <br>We hope to see you back on <strong>{site_name}</strong> soon!' ),
@@ -180,7 +193,7 @@ class EmailController {
 			'label'        => __( 'Subscription Cancelled', 'tutor-pro' ),
 			'default'      => 'on',
 			'template'     => 'to_student_subscription_cancelled',
-			'tooltip'      => 'Email sent to student when subscription is cancelled',
+			'tooltip'      => __( 'Email sent to student when subscription is cancelled', 'tutor-pro' ),
 			'subject'      => __( 'Your Subscription Has Been Cancelled', 'tutor-pro' ),
 			'heading'      => __( 'Subscription cancelled', 'tutor-pro' ),
 			'message'      => wp_json_encode( 'We wanted to inform you that your subscription to <strong>{plan_name}</strong> has been cancelled.<br><br>Thank you for being a part of <strong>{site_name}</strong>. Wishing you success in all your future learning!' ),
@@ -196,11 +209,12 @@ class EmailController {
 	 *
 	 * @param string $to_key to key.
 	 * @param string $trigger_key key name.
+	 * @param int    $recipient the receiver id.
 	 *
 	 * @return array
 	 */
-	public function get_email_option_data( $to_key, $trigger_key ) {
-		$email_options     = get_option( 'email_template_data' );
+	public function get_email_option_data( $to_key, $trigger_key, $recipient ) {
+		$email_options     = apply_filters( 'tutor_pro_user_email_template_option', get_option( 'email_template_data' ), $recipient );
 		$default_mail_data = ( new EmailData() )->get_recipients();
 
 		return isset( $email_options[ $to_key ][ $trigger_key ] )
@@ -218,8 +232,9 @@ class EmailController {
 	 * @return void
 	 */
 	public function to_student_subscription_activated( $subscription ) {
-		$is_enabled = tutor_utils()->get_option( 'email_to_students.subscription_activated' );
-		if ( ! $is_enabled || ! $subscription ) {
+		$trigger_name = 'subscription_activated';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
+		if ( ! $is_enabled || ! $subscription || $subscription->is_trial_enabled ) {
 			return;
 		}
 
@@ -229,10 +244,15 @@ class EmailController {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$user        = get_userdata( $subscription->user_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_activated' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_activated', $user->ID );
 		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
 
 		$replaceable['{plan_name}']        = $plan->plan_name;
@@ -257,6 +277,60 @@ class EmailController {
 	}
 
 	/**
+	 * Sent email to student when subscription trial get activated.
+	 *
+	 * @since 3.4.0
+	 *
+	 * @param object $subscription subscription.
+	 *
+	 * @return void
+	 */
+	public function to_student_subscription_trial_activated( $subscription ) {
+		$trigger_name = 'subscription_trial_activated';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
+		if ( ! $is_enabled || ! $subscription || ! $subscription->is_trial_enabled ) {
+			return;
+		}
+
+		$plan = $this->plan_model->get_plan( $subscription->plan_id );
+
+		if ( ! $plan ) {
+			return;
+		}
+
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
+		$user        = get_userdata( $subscription->user_id );
+		$site_url    = get_bloginfo( 'url' );
+		$site_name   = get_bloginfo( 'name' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_trial_activated', $user->ID );
+		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
+
+		$replaceable['{plan_name}']        = $plan->plan_name;
+		$replaceable['{subscription_url}'] = $this->subscription_model->get_subscription_details_url( $subscription->id );
+
+		$replaceable['{testing_email_notice}'] = '';
+		$replaceable['{site_url}']             = $site_url;
+		$replaceable['{site_name}']            = $site_name;
+		$replaceable['{logo}']                 = isset( $option_data['logo'] ) ? $option_data['logo'] : '';
+		$replaceable['{email_heading}']        = $this->email_notification->get_replaced_text( $option_data['heading'], array_keys( $replaceable ), array_values( $replaceable ) );
+		$replaceable['{footer_text}']          = $this->email_notification->get_replaced_text( $option_data['footer_text'], array_keys( $replaceable ), array_values( $replaceable ) );
+		$replaceable['{user_name}']            = tutor_utils()->get_user_name( $user );
+		$replaceable['{email_message}']        = $this->email_notification->get_replaced_text( $this->email_notification->prepare_message( $option_data['message'] ), array_keys( $replaceable ), array_values( $replaceable ) );
+		$subject                               = $this->email_notification->get_replaced_text( $option_data['subject'], array_keys( $replaceable ), array_values( $replaceable ) );
+
+		ob_start();
+		$this->email_notification->tutor_load_email_template( 'to_student_subscription_trial_activated' );
+		$email_tpl = ob_get_clean();
+
+		$message = html_entity_decode( $this->email_notification->get_message( $email_tpl, array_keys( $replaceable ), array_values( $replaceable ) ) );
+		$this->email_notification->send( $user->user_email, $subject, $message, $header );
+	}
+
+	/**
 	 * Sent email to student when subscription get renewed.
 	 *
 	 * @since 3.0.0
@@ -266,7 +340,8 @@ class EmailController {
 	 * @return void
 	 */
 	public function to_student_subscription_renewed( $subscription ) {
-		$is_enabled = tutor_utils()->get_option( 'email_to_students.subscription_renewed' );
+		$trigger_name = 'subscription_renewed';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $is_enabled || ! $subscription ) {
 			return;
 		}
@@ -277,10 +352,15 @@ class EmailController {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$user        = get_userdata( $subscription->user_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_renewed' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_renewed', $user->ID );
 		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
 
 		$replaceable['{expiry_date}']      = DateTimeHelper::get_gmt_to_user_timezone_date( $subscription->end_date_gmt, null, $user );
@@ -315,7 +395,8 @@ class EmailController {
 	 * @return void
 	 */
 	public function to_student_subscription_hold( $subscription ) {
-		$is_enabled = tutor_utils()->get_option( 'email_to_students.subscription_hold' );
+		$trigger_name = 'subscription_hold';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $is_enabled || ! $subscription ) {
 			return;
 		}
@@ -326,10 +407,15 @@ class EmailController {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$user        = get_userdata( $subscription->user_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_hold' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_hold', $user->ID );
 		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
 
 		$replaceable['{plan_name}']        = $plan->plan_name;
@@ -363,7 +449,8 @@ class EmailController {
 	 * @return void
 	 */
 	public function to_student_subscription_cancelled( $subscription ) {
-		$is_enabled = tutor_utils()->get_option( 'email_to_students.subscription_cancelled' );
+		$trigger_name = 'subscription_cancelled';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $is_enabled || ! $subscription ) {
 			return;
 		}
@@ -374,10 +461,15 @@ class EmailController {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$user        = get_userdata( $subscription->user_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_cancelled' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_cancelled', $user->ID );
 		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
 
 		$replaceable['{plan_name}']        = $plan->plan_name;
@@ -411,7 +503,8 @@ class EmailController {
 	 * @return void
 	 */
 	public function to_student_subscription_expired( $subscription ) {
-		$is_enabled = tutor_utils()->get_option( 'email_to_students.subscription_expired' );
+		$trigger_name = 'subscription_expired';
+		$is_enabled   = tutor_utils()->get_option( 'email_to_students.' . $trigger_name );
 		if ( ! $is_enabled || ! $subscription ) {
 			return;
 		}
@@ -422,10 +515,15 @@ class EmailController {
 			return;
 		}
 
+		$notification_enabled = apply_filters( 'tutor_is_notification_enabled_for_user', true, EmailNotification::NOTIFICATION_TYPE, EmailNotification::TO_STUDENTS, $trigger_name, $subscription->user_id );
+		if ( ! $notification_enabled ) {
+			return;
+		}
+
 		$user        = get_userdata( $subscription->user_id );
 		$site_url    = get_bloginfo( 'url' );
 		$site_name   = get_bloginfo( 'name' );
-		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_expired' );
+		$option_data = $this->get_email_option_data( EmailNotification::TO_STUDENTS, 'subscription_expired', $user->ID );
 		$header      = 'Content-Type: ' . $this->email_notification->get_content_type() . "\r\n";
 
 		$replaceable['{plan_name}']        = $plan->plan_name;

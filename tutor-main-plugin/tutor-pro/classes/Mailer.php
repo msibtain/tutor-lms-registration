@@ -49,9 +49,10 @@ class Mailer {
 
 		$to_array = is_array( $to ) ? $to : array( $to );
 		$return   = array();
-
 		foreach ( $to_array as $email ) {
+			do_action( 'tutor_pro_before_prepare_email_template_data', $email );
 			$return[ $email ] = wp_mail( $email, $subject, $message, $header, $attachments );
+			do_action( 'tutor_pro_after_prepare_template_email_data' );
 		}
 
 		remove_filter( 'wp_mail_content_type', array( $obj, 'get_content_type' ) );

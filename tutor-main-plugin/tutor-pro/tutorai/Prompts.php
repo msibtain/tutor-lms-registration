@@ -37,7 +37,9 @@ final class Prompts {
 		}
 
 		foreach ( $input as $key => $value ) {
-			$system_content = str_replace( '{' . $key . '}', $value, $system_content );
+			if ( is_scalar( $value ) || ( is_object( $value ) && method_exists( $value, '__toString' ) ) ) {
+				$system_content = str_replace( '{' . $key . '}', (string) $value, $system_content );
+			}
 		}
 
 		return $system_content;
@@ -351,7 +353,7 @@ final class Prompts {
 	 * @return array
 	 */
 	public static function prepare_course_topic_content_messages( string $title, string $topic_name ) {
-		$is_assignment_addon_enabled = tutor_utils()->is_addon_enabled( TUTOR_ASSIGNMENTS()->basename );
+		$is_assignment_addon_enabled = function_exists( 'TUTOR_ASSIGNMENTS' ) && tutor_utils()->is_addon_enabled( TUTOR_ASSIGNMENTS()->basename );
 
 		$content_types = array( 'lesson', 'quiz' );
 		if ( $is_assignment_addon_enabled ) {
@@ -410,16 +412,16 @@ final class Prompts {
 
     [
       {
-        'title': 'the question title?',
-				'type': 'true_false|open_ended|multiple_choice',
-        'options': [
+        \"title\": \"the question title?\",
+        \"type\": \"true_false|open_ended|multiple_choice\",
+        \"options\": [
           {
-            'name': 'option name',
-            'is_correct': true
+            \"name\": \"option name\",
+            \"is_correct\": true
           },
           {
-            'name': 'option name',
-            'is_correct': false
+            \"name\": \"option name\",
+            \"is_correct\": false
           }
         ]
       }
@@ -445,6 +447,78 @@ final class Prompts {
 			array(
 				'role'    => 'user',
 				'content' => 'The quiz title: ' . $quiz_title,
+			),
+		);
+	}
+
+	/**
+	 * Prepare the question generation messages for the AI provider.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param array  $source_contents Structured source content list.
+	 * @param string $question_types Comma-separated question types.
+	 * @param int    $number_of_questions Number of questions.
+	 * @param string $difficulty_level Difficulty level.
+	 *
+	 * @return array Chat messages for quiz generation.
+	 */
+	public static function prepare_question_generate_prompt( array $source_contents, $question_types, $number_of_questions, $difficulty_level ) {
+		$number_of_questions = max( 1, absint( $number_of_questions ) );
+
+		$system_content = "You are an expert instructional designer creating assessment questions for Tutor LMS courses. Generate quiz questions only from the provided source content. Prefer concept understanding, applied reasoning, and useful recall over trivial wording checks. Match the requested difficulty and keep the questions clear, unambiguous, and suitable for online learners. Return only one valid JSON object and no markdown, code fences, comments, or extra text.
+		The response should be in **valid JSON** format as follows, and make sure not to use any suffix or prefix with the response:
+			[
+				{
+					'title': 'the question title?',
+					'type': 'true_false|open_ended|multiple_choice|short_answer',
+					'options': [
+					{
+						'name': 'option name',
+						'is_correct': true
+					},
+					{
+						'name': 'option name',
+						'is_correct': false
+					}
+					]
+				}
+			]
+		";
+
+		$generation_rules = array(
+			'requested_question_count' => $number_of_questions,
+			'difficulty'               => $difficulty_level,
+			'allowed_question_types'   => $question_types,
+			'question_type_rules'      => array(
+				'true_false'      => 'Use exactly two answers: True and False. Mark exactly one answer as correct.',
+				'multiple_choice' => 'Use four plausible answers. Mark one or more answers as correct only when the question clearly asks for multiple answers.',
+				'single_choice'   => 'Use four plausible answers. Mark exactly one answer as correct.',
+				'open_ended'      => 'Use an empty answers array and include a concise sample_answer.',
+				'short_answer'    => 'Use an empty answers array and include a concise sample_answer.',
+			),
+			'quality_rules'            => array(
+				'Use the provided topic and lesson titles and descriptions as the only factual source.',
+				'Do not create questions from content that is missing or only implied.',
+				'Spread questions across the available lessons when possible.',
+				'Each question title should be a direct question ending with a question mark unless the question type requires a statement.',
+				'Each answer must be concise and mutually exclusive.',
+				'Include a short explanation that cites the source title used for the question.',
+			),
+		);
+
+		return array(
+			array(
+				'role'    => 'system',
+				'content' => $system_content,
+			),
+			array(
+				'role'    => 'user',
+				'content' => 'Quiz generation requirements: ' . wp_json_encode( $generation_rules ),
+			),
+			array(
+				'role'    => 'user',
+				'content' => 'Source content: ' . wp_json_encode( $source_contents ),
 			),
 		);
 	}

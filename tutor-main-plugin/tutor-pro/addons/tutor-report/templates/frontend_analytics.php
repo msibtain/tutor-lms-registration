@@ -8,6 +8,11 @@
  * @since 1.9.8
  */
 
+defined( 'ABSPATH' ) || exit;
+
+use Tutor\Components\Nav;
+use Tutor\Components\Constants\Size;
+
 global $wp_query;
 if ( ! current_user_can( tutor()->instructor_role ) ) {
 	return;
@@ -23,17 +28,18 @@ if ( count( $arr ) ) {
 		$current_page = $arr[0];
 	}
 }
+$tabs_data = array();
 
 ?>
 <div class="tutor-analytics-wrapper">
 	<?php
-		/**
-		 * Course details page design need to display as stand alone
-		 *
-		 * That is why it is not included as sub page
-		 *
-		 * @since 1.9.9
-		 */
+	/**
+	 * Course details page design need to display as stand alone
+	 *
+	 * That is why it is not included as sub page
+	 *
+	 * @since 1.9.9
+	 */
 	if ( 'course-details' === $current_page ) {
 		include_once TUTOR_REPORT()->path . 'templates/course_details.php';
 		return;
@@ -42,32 +48,31 @@ if ( count( $arr ) ) {
 		include_once TUTOR_REPORT()->path . 'templates/student_details.php';
 		return;
 	}
+
+	$page_nav_items = array();
+
+	foreach ( $sub_pages as $key => $sub_page ) {
+		$page_nav_items[] = array(
+			'type'   => 'link',
+			'label'  => $sub_page['title'],
+			'url'    => esc_url( $sub_page['url'] ),
+			'active' => $current_page === $key,
+		);
+	}
+
 	?>
-	<div class="tutor-report-menu tutor-mb-32">
-		<div class="tutor-analytics-title tutor-fs-5 tutor-fw-medium tutor-color-black tutor-mb-16">
-			<?php esc_html_e( 'Analytics', 'tutor-pro' ); ?>
-		</div>
 
-		<ul class="tutor-nav" tutor-priority-nav>
-			<?php foreach ( $sub_pages as $key => $page ) : ?>
-			<li class="tutor-nav-item">
-				<a class="tutor-nav-link<?php echo esc_attr( $current_page === $key ? ' is-active' : '' ); ?>" href="<?php echo esc_url( $page['url'] ); ?>">
-					<?php echo esc_html( $page['title'] ); ?>
-				</a>
-			</li>
-			<?php endforeach; ?>
-			<li class="tutor-nav-item tutor-nav-more tutor-d-none">
-				<a class="tutor-nav-link tutor-nav-more-item" href="#"><span class="tutor-mr-4"><?php esc_html_e( 'More', 'tutor-pro' ); ?></span> <span class="tutor-nav-more-icon tutor-icon-times"></span></a>
-				<ul class="tutor-nav-more-list tutor-dropdown"></ul>
-			</li>
-		</ul>
+	<h4 class="tutor-quiz-attempts-mobile-heading tutor-h4 tutor-mb-5">
+		<?php esc_html_e( 'Analytics', 'tutor-pro' ); ?>
+	</h4>
+	<div class="tutor-report-menu tutor-surface-l1 tutor-p-4 tutor-border tutor-rounded-2xl">
+		<?php Nav::make()->items( $page_nav_items )->size( Size::SMALL )->render(); ?>
 	</div>
-
 	<div class="tutor-analytics-sub-pages">
 		<?php
-			// @codingStandardsIgnoreStart
-			echo $report_instance->analytics->load_sub_page( $current_page );
-			// @codingStandardsIgnoreEnd
+		// @codingStandardsIgnoreStart
+		echo $report_instance->analytics->load_sub_page( $current_page );
+		// @codingStandardsIgnoreEnd
 		?>
 	</div>
 </div>

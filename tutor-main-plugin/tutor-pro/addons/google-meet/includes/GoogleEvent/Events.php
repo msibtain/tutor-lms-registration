@@ -36,22 +36,12 @@ class Events {
 	protected $google_client;
 
 	/**
-	 * App unauthorized message
-	 *
-	 * @since v2.1.0
-	 *
-	 * @var string
-	 */
-	protected $unauthorized_msg;
-
-	/**
 	 * Register hooks
 	 *
 	 * @since v2.1.0
 	 */
 	public function __construct() {
-		$this->google_client    = new GoogleEvent();
-		$this->unauthorized_msg = __( 'You app is not authorized, please authorize from set-api page!', 'tutor-pro' );
+		$this->google_client = new GoogleEvent();
 
 		add_action( 'wp_ajax_tutor_google_meet_new_meeting', array( $this, 'create_meeting' ) );
 		add_action( 'wp_ajax_tutor_google_meet_meeting_details', array( $this, 'ajax_google_meet_meeting_details' ) );
@@ -66,6 +56,23 @@ class Events {
 		 */
 		add_filter( 'tutor_course_details_response', array( $this, 'extend_course_details_response' ) );
 	}
+
+	/**
+	 * Page title fallback
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param string $name Property name.
+	 *
+	 * @return string
+	 */
+	public function __get( $name ) {
+		if ( 'unauthorized_msg' === $name ) {
+			return esc_html__( 'You app is not authorized, please authorize from set-api page!', 'tutor-pro' );
+		}
+	}
+
+
 
 	/**
 	 * Get google meet meeting details
@@ -134,7 +141,7 @@ class Events {
 
 		// Sanitize post field.
 		$post = array_map(
-			function( $value ) {
+			function ( $value ) {
 				return sanitize_text_field( $value );
 			},
 			$_POST //phpcs:ignore WordPress.Security.NonceVerification.Missing
@@ -144,14 +151,12 @@ class Events {
 		// Check action type.
 		$is_update = isset( $post['post-id'] ) ? true : false;
 
-		// Check event type under course or topic.
-		$event_type = get_post_type( $post['course_id'] );
 
 		$attendees = array();
 		// Get enrolled students.
 
 		if ( 'Yes' === $post['attendees'] ) {
-			$course_id = $post['course_id'];
+			$course_id = $post['object_id'];
 			/**
 			 * If not course id then it topic id
 			 * get topic parent id & set as course id.
@@ -279,7 +284,7 @@ class Events {
 				$event_data = array(
 					'post_title'   => $post['meeting_title'],
 					'post_content' => $post['meeting_summary'],
-					'post_parent'  => $post['course_id'],
+					'post_parent'  => $post['object_id'],
 					'post_type'    => EventsModel::POST_TYPE,
 					'post_status'  => 'publish',
 					'meta_input'   => array(
@@ -295,23 +300,21 @@ class Events {
 					$event_data['ID'] = $post['post-id'];
 					$insert_event     = EventsModel::update( $event_data );
 				} else {
-					$insert_event = EventsModel::insert( $event_data );
+					$event_data['menu_order'] = tutor_utils()->get_next_course_content_order_id( $post['object_id'] );
+					$insert_event             = EventsModel::insert( $event_data );
 				}
 
 				if ( is_wp_error( $insert_event ) ) {
 					$this->json_response( $insert_event->get_error_message(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
+				} elseif ( $is_update ) {
+						$this->json_response( __( 'Meeting Successfully Updated', 'tutor-pro' ), null );
 				} else {
-					if ( $is_update ) {
-						$this->json_response( __( 'Meeting Successfully Updated' ), null );
-					} else {
-						$this->json_response( __( 'Meeting Successfully Added' ), HttpHelper::STATUS_CREATED );
-					}
+					$this->json_response( __( 'Meeting Successfully Added', 'tutor-pro' ), HttpHelper::STATUS_CREATED );
 				}
 			} catch ( \Throwable $th ) {
 				$this->json_response( $th->getMessage(), null, HttpHelper::STATUS_INTERNAL_SERVER_ERROR );
 			}
 		}
-
 	}
 
 	/**
@@ -410,10 +413,8 @@ class Events {
 
 		if ( '' === $event_id || '' === $post_id ) {
 			$this->json_response( $validation_msg, null, HttpHelper::STATUS_UNPROCESSABLE_ENTITY );
-		} else {
-			if ( ! is_numeric( $post_id ) ) {
+		} elseif ( ! is_numeric( $post_id ) ) {
 				$this->json_response( __( 'Invalid Post ID', 'tutor-pro' ), null, HttpHelper::STATUS_UNPROCESSABLE_ENTITY );
-			}
 		}
 
 		try {
@@ -477,8 +478,8 @@ class Events {
 	public function reset_credential() {
 		tutor_utils()->checking_nonce();
 
-		if ( ! User::is_admin() ) {
-			wp_send_json_error( tutor_utils()->error_message() );
+		if ( ! User::is_admin() && ! User::is_instructor() ) {
+			$this->response_bad_request( tutor_utils()->error_message() );
 		}
 
 		$file_name = md5( \wp_get_current_user()->user_login ) . '-credential.json';
@@ -486,12 +487,12 @@ class Events {
 		tutor_log( $file_path );
 		if ( file_exists( $file_path ) ) {
 			if ( unlink( $file_path ) ) {
-				wp_send_json_success( __( 'Credential reset successfully!', 'tutor-pro' ) );
+				$this->response_success( __( 'Credential reset successfully!', 'tutor-pro' ) );
 			} else {
-				wp_send_json_error( __( 'Credential reset failed!', 'tutor-pro' ) );
+				$this->response_bad_request( __( 'Credential reset failed!', 'tutor-pro' ) );
 			}
 		} else {
-			wp_send_json_error( __( 'Credential not exists!', 'tutor-pro' ) );
+			$this->response_bad_request( __( 'Credential not exists!', 'tutor-pro' ) );
 		}
 	}
 
@@ -511,6 +512,7 @@ class Events {
 		}
 
 		$meetings = self::get_meetings( array( 'post_parent' => $course_id ) );
+		$meetings = ! is_array( $meetings ) ? array() : $meetings;
 
 		foreach ( $meetings as $meeting ) {
 			$meeting->meeting_data = json_decode( get_post_meta( $meeting->ID, EventsModel::POST_META_KEYS[2], true ) );

@@ -21,53 +21,57 @@ $sub_pages        = array(
 	'students' => __( 'Students', 'tutor-pro' ),
 );
 
+$sub_pages = apply_filters( 'tutor_report_sub_pages', $sub_pages );
+
 if ( Input::has( 'sub_page' ) ) {
 	$current_sub_page = Input::get( 'sub_page' );
 	$current_name     = isset( $sub_pages[ $current_sub_page ] ) ? $sub_pages[ $current_sub_page ] : '';
 }
 ?>
 <div class="tutor-admin-wrap">
-	<div class="tutor-wp-dashboard-header tutor-px-24 tutor-mb-24">
-		<div class="tutor-row tutor-align-lg-center">
-			<div class="tutor-col-lg">
-				<div class="tutor-d-lg-flex tutor-align-lg-center tutor-p-12">
-					<span class="tutor-fs-5 tutor-fw-medium">
-						<?php esc_html_e( 'LMS Reports', 'tutor-pro' ); ?>
-					</span>
+	<div class="tutor-wp-dashboard-header tutor-mb-24">
+		<div class="tutor-admin-container tutor-admin-container-lg">
+			<div class="tutor-row tutor-align-lg-center">
+				<div class="tutor-col-lg">
+					<div class="tutor-d-lg-flex tutor-align-lg-center tutor-py-12">
+						<span class="tutor-fs-5 tutor-fw-medium">
+							<?php esc_html_e( 'LMS Reports', 'tutor-pro' ); ?>
+						</span>
 
-					<span class="tutor-mx-8" area-hidden="true">/</span>
-					
-					<span class="tutor-fs-7 tutor-color-muted">
-						<?php echo esc_html( $current_name ); ?>
-					</span>
+						<span class="tutor-mx-8" aria-hidden="true">/</span>
+
+						<span class="tutor-fs-7 tutor-color-muted">
+							<?php echo esc_html( $current_name ); ?>
+						</span>
+					</div>
 				</div>
-			</div>
 
-			<div class="tutor-col-lg-auto">
-				<ul class="tutor-nav tutor-nav-admin">
-					<?php foreach ( $sub_pages as $key => $page ) : ?>
-						<?php
-							$is_active = $page === $current_name ? ' is-active' : '';
-							$url       = add_query_arg(
-								array(
-									'page'     => 'tutor_report',
-									'sub_page' => $key,
-								),
-								admin_url( 'admin.php' )
-							);
-						?>
-						<li class="tutor-nav-item">
-							<a class="tutor-nav-link<?php echo esc_attr( $is_active ); ?>" href="<?php echo esc_url( $url ); ?>">
-								<?php echo esc_html( $page ); ?>
-							</a>
-						</li>
-					<?php endforeach; ?>
-				</ul>
+				<div class="tutor-col-lg-auto">
+					<ul class="tutor-nav tutor-nav-admin">
+						<?php foreach ( $sub_pages as $key => $page ) : ?>
+							<?php
+								$is_active = $page === $current_name ? ' is-active' : '';
+								$url       = add_query_arg(
+									array(
+										'page'     => 'tutor_report',
+										'sub_page' => $key,
+									),
+									admin_url( 'admin.php' )
+								);
+							?>
+							<li class="tutor-nav-item">
+								<a class="tutor-nav-link<?php echo esc_attr( $is_active ); ?>" href="<?php echo esc_url( $url ); ?>">
+									<?php echo esc_html( $page ); ?>
+								</a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
 			</div>
 		</div>
 	</div>
 
-	<div class="tutor-admin-body">
+	<div class="tutor-admin-container tutor-admin-container-lg">
 		<div class="report-main-wrap">
 			<div class="tutor-report-content">
 				<?php
@@ -77,7 +81,7 @@ if ( Input::has( 'sub_page' ) ) {
 				}
 
 				$view_page = TUTOR_REPORT()->path . 'views/pages/';
-				$view_file = $view_page . $page . "/{$page}.php";
+				$view_file = apply_filters( 'tutor_report_view_file_path', $view_page . $page . "/{$page}.php", $page );
 
 				if ( file_exists( $view_file ) ) {
 					include $view_file;

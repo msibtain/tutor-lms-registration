@@ -136,10 +136,16 @@ $edit_course_link = admin_url( "admin.php?page=create-course&course_id=$current_
 					<?php echo esc_html( number_format( $course_rating->rating_avg, 2 ) ); ?>
 					(
 					<?php
-						$text = _n( 'Rating', 'Ratings', $course_rating->rating_count );
-						// translators: %s: number of ratings.
-						echo esc_html( sprintf( __( '%1$s %2$s', 'tutor-pro' ), $course_rating->rating_count, $text ) );
-					?>
+						$text = _n( 'Rating', 'Ratings', $course_rating->rating_count, 'tutor-pro' );
+						echo esc_html(
+							sprintf(
+								// translators: %1$s: rating count, %2$s: rating text.
+								_x( '%1$s %2$s', 'course rating', 'tutor-pro' ),
+								$course_rating->rating_count,
+								$text
+							)
+						);
+						?>
 					)
 				</div>
 			</div>
@@ -153,7 +159,7 @@ $edit_course_link = admin_url( "admin.php?page=create-course&course_id=$current_
 			</div>
 			<div class="tutor-admin-report-frequency-wrapper" style="min-width: 260px;">
 				<?php tutor_load_template_from_custom_path( TUTOR_REPORT()->path . 'templates/elements/frequency.php' ); ?>
-				<div class="tutor-v2-date-range-picker inactive" style="width: 305px; position:absolute; z-index: 99;"></div>
+				<div class="tutor-v2-date-range-picker inactive"></div>
 			</div>
 		</div>
 		<div class="tutor-overview-month-graph">
@@ -165,7 +171,7 @@ $edit_course_link = admin_url( "admin.php?page=create-course&course_id=$current_
 				 * @since 1.9.9
 				 */
 				$user_id     = get_current_user_id();
-				$course_id   = isset( $_GET['course_id'] ) ? $_GET['course_id'] : null;
+				$course_id   = Input::get( 'course_id', 0, Input::TYPE_INT );
 				$earnings    = Analytics::get_earnings_by_user( 0, $time_period, $start_date, $end_date, $course_id );
 				$enrollments = Analytics::get_total_students_by_user( 0, $time_period, $start_date, $end_date, $course_id );
 				$discounts   = Analytics::get_discounts_by_user( 0, $time_period, $start_date, $end_date, $course_id );

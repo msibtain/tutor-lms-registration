@@ -12,9 +12,9 @@
 
 namespace TutorPro\Ecommerce;
 
-use Tutor\Ecommerce\OptionKeys;
 use Tutor\Helpers\HttpHelper;
 use Tutor\Traits\JsonResponse;
+use Tutor\Ecommerce\OptionKeys;
 
 /**
  * Init payment gateway init class
@@ -52,11 +52,12 @@ class Config {
 				$gateway_arr = (array) $gateway;
 				$basename    = "tutor-$key/tutor-{$key}.php";
 
-				$gateway_arr['name']           = $key;
-				$gateway_arr['is_installed']   = self::is_installed( $basename );
-				$gateway_arr['is_active']      = self::is_active( $key );
-				$gateway_arr['icon']           = $gateway->icon;
-				$gateway_arr['latest_version'] = $gateway->latest_version;
+				$gateway_arr['name']             = $key;
+				$gateway_arr['is_installed']     = self::is_installed( $basename );
+				$gateway_arr['is_plugin_active'] = is_plugin_active( $basename );
+				$gateway_arr['is_active']        = self::is_active( $key );
+				$gateway_arr['icon']             = $gateway->icon;
+				$gateway_arr['latest_version']   = $gateway->latest_version;
 
 				// Override.
 				$gateway_arr['support_subscription'] = 'Yes' === $gateway->support_subscription;
@@ -122,7 +123,7 @@ class Config {
 	 *
 	 * @return boolean
 	 */
-	public static function is_active( string $gateway ) : bool {
+	public static function is_active( string $gateway ): bool {
 		$payments = tutor_utils()->get_option( OptionKeys::PAYMENT_SETTINGS );
 		$payments = json_decode( stripslashes( $payments ) );
 
@@ -145,14 +146,14 @@ class Config {
 	 *
 	 * @since 1.0.0
 	 *
-	 * @param string $gateway Gateway label name. This name should
+	 * @param string $plugin_basename Gateway label name. This name should
 	 * be same as package dir & main file name. For ex: AliPay, Eway etc.
 	 *
 	 * @see get_payment_gateways method
 	 *
 	 * @return boolean
 	 */
-	public static function is_installed( string $plugin_basename ) : bool {
+	public static function is_installed( string $plugin_basename ): bool {
 		return file_exists( trailingslashit( WP_PLUGIN_DIR ) . $plugin_basename );
 	}
 
@@ -183,7 +184,7 @@ class Config {
 					'name'    => $key,
 					'type'    => 'select',
 					'options' => self::get_payment_environments(),
-					'label'   => __( ucfirst( str_replace( '_', ' ', $key ) ), 'tutor-pro' ),
+					'label'   => ucfirst( str_replace( '_', ' ', $key ) ),
 					'value'   => 'test',
 				);
 			} elseif ( 'alipay_region' === $type ) {
@@ -194,14 +195,23 @@ class Config {
 						'na'   => __( 'North America', 'tutor-pro' ),
 						'asia' => __( 'Asia', 'tutor-pro' ),
 					),
-					'label'   => __( ucfirst( str_replace( '_', ' ', $key ) ), 'tutor-pro' ),
+					'label'   => ucfirst( str_replace( '_', ' ', $key ) ),
 					'value'   => 'na',
+				);
+			} elseif ( 'options' === $type ) {
+				$options         = call_user_func( array( __CLASS__, 'get_' . $gateway . '_options' ) );
+				$config_fields[] = array(
+					'name'    => $key,
+					'type'    => 'select',
+					'options' => $options,
+					'label'   => ucfirst( str_replace( '_', ' ', $key ) ),
+					'value'   => $options ? array_keys( $options )[0] : '',
 				);
 			} else {
 				$config_fields[] = array(
 					'name'  => $key,
 					'type'  => $type,
-					'label' => __( ucfirst( str_replace( '_', ' ', $key ) ), 'tutor-pro' ),
+					'label' => ucfirst( str_replace( '_', ' ', $key ) ),
 					'value' => '',
 				);
 			}
@@ -219,8 +229,8 @@ class Config {
 	 */
 	public static function get_payment_environments() {
 		return array(
-			'test' => __( 'Test', 'tutor' ),
-			'live' => __( 'Live', 'tutor' ),
+			'test' => __( 'Test', 'tutor-pro' ),
+			'live' => __( 'Live', 'tutor-pro' ),
 		);
 	}
 
@@ -237,6 +247,7 @@ class Config {
 			'key_id'         => 'secret_key',
 			'key_secret'     => 'secret_key',
 			'webhook_secret' => 'secret_key',
+			'webhook_url'    => 'webhook_url',
 		);
 	}
 
@@ -265,10 +276,11 @@ class Config {
 	 */
 	public static function get_paddle_config_keys() {
 		return array(
-			'environment' => 'environment',
-			'vendor_id'   => 'secret_key',
-			'auth_code'   => 'secret_key',
-			'public_key'  => 'textarea',
+			'environment'        => 'environment',
+			'api_key'            => 'secret_key',
+			'webhook_secret_key' => 'secret_key',
+			'client_side_token'  => 'secret_key',
+			'webhook_url'        => 'webhook_url',
 		);
 	}
 
@@ -284,6 +296,7 @@ class Config {
 		return array(
 			'environment' => 'environment',
 			'secret_key'  => 'secret_key',
+			'webhook_url' => 'webhook_url',
 		);
 	}
 
@@ -310,12 +323,13 @@ class Config {
 	 *
 	 * @return array
 	 */
-	public static function get_authorize_net_config_keys() {
+	public static function get_authorizenet_config_keys() {
 		return array(
 			'environment'     => 'environment',
 			'login_id'        => 'secret_key',
 			'transaction_key' => 'secret_key',
 			'signature_key'   => 'secret_key',
+			'webhook_url'     => 'webhook_url',
 		);
 	}
 
@@ -377,6 +391,7 @@ class Config {
 			'environment' => 'environment',
 			'username'    => 'secret_key',
 			'password'    => 'secret_key',
+			'region'      => 'options',
 		);
 	}
 
@@ -501,5 +516,37 @@ class Config {
 
 		return $payment_gateways;
 	}
-}
 
+	/**
+	 * Retrieves the configuration keys for the 2Checkout payment gateway.
+	 *
+	 * @return array An associative array where the keys represent the configuration options and the values represent the
+	 * field types.
+	 *
+	 * @since 3.3.0
+	 */
+	public static function get_twocheckout_config_keys() {
+		return array(
+			'environment'          => 'environment',
+			'merchant_code'        => 'secret_key',
+			'secret_key'           => 'secret_key',
+			'buy_link_secret_word' => 'secret_key',
+			'webhook_url'          => 'webhook_url',
+		);
+	}
+
+	/**
+	 * Get Klarna region options.
+	 *
+	 * @since 3.6.0
+	 *
+	 * @return array Associative array with region codes as keys and translated region names as values .
+	 */
+	private static function get_klarna_options(): array {
+		return array(
+			'eu' => __( 'Europe', 'tutor-pro' ),
+			'na' => __( 'North America', 'tutor-pro' ),
+			'oc' => __( 'Oceania', 'tutor-pro' ),
+		);
+	}
+}

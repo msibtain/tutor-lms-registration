@@ -8,6 +8,9 @@
  * @package TutorPro\GoogleMeet\Templates
  */
 
+defined( 'ABSPATH' ) || exit;
+
+use Tutor\Models\EnrollmentModel;
 use TutorPro\GoogleMeet\Models\EventsModel;
 
 $course_id    = get_the_ID();
@@ -23,7 +26,7 @@ $paging_args  = array(
 );
 $meetings     = EventsModel::get( 'active', $sorting_args, $paging_args, true );
 ?>
-<?php if ( tutor_utils()->is_enrolled( $course_id ) || tutor_utils()->has_user_course_content_access( get_current_user_id(), $course_id ) ) : ?>
+<?php if ( EnrollmentModel::is_enrolled( $course_id ) || tutor_utils()->has_user_course_content_access( get_current_user_id(), $course_id ) ) : ?>
 	<?php if ( is_array( $meetings['meetings'] ) && count( $meetings['meetings'] ) ) : ?>
 		<div class="tutor-single-course-segment tutor-course-topics-wrap">
 			<div class="tutor-course-topics-header">
@@ -39,7 +42,7 @@ $meetings     = EventsModel::get( 'active', $sorting_args, $paging_args, true );
 				$event_details = json_decode( $meeting->event_details );
 			?>
 		<div class="tutor-course-topics-contents">
-			<div class="tutor-course-topic tutor-google-meet-meeting <?php echo esc_attr( 0 === $key ? 'tutor-active' : '' ); ?>">
+			<div id="tutor-google-meetings" class="tutor-course-topic tutor-google-meet-meeting <?php echo esc_attr( 0 === $key ? 'tutor-active' : '' ); ?>">
 				<div class="tutor-course-title tutor-d-flex tutor-justify-between tutor-align-center">
 					<div class="tutor-google-meet-meeting-detail">
 						<h3>
@@ -63,7 +66,7 @@ $meetings     = EventsModel::get( 'active', $sorting_args, $paging_args, true );
 					</div>
 				</div>
 				<div class="tutor-course-lessons" style="display: none;">
-					<div class="tutor-time-countdown tutor-countdown-lg tutor-mt-32 tutor-px-32" data-datetime="<?php echo esc_attr( $event_details->end_datetime ); ?>" data-timezone="<?php echo esc_attr( $event_details->timezone ); ?>">
+					<div class="tutor-time-countdown tutor-countdown-lg tutor-mt-32 tutor-px-32" data-datetime="<?php echo esc_attr( $event_details->start_datetime ); ?>" data-timezone="<?php echo esc_attr( $event_details->timezone ); ?>">
 	
 					</div>						
 					<div class="tutor-d-flex tutor-justify-between tutor-align-center tutor-p-32">

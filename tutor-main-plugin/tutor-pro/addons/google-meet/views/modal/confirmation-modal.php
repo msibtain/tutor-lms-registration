@@ -10,20 +10,20 @@
 
 ?>
 
-<div class="tutor-modal" id="tutor-google-meet-confirmation-modal">
+<div class="tutor-modal" id="tutor-google-meet-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="tutor-google-meet-confirmation-title" aria-hidden="true">
 	<div class="tutor-modal-overlay"></div>
 	<div class="tutor-modal-window">
 		<div class="tutor-modal-content tutor-modal-content-white">
-			<button class="tutor-iconic-btn tutor-modal-close-o" data-tutor-modal-close>
-				<span class="tutor-icon-times" area-hidden="true"></span>
+			<button type="button" class="tutor-iconic-btn tutor-modal-close-o" data-tutor-modal-close aria-label="<?php esc_attr_e( 'Close', 'tutor-pro' ); ?>">
+				<span class="tutor-icon-times" aria-hidden="true"></span>
 			</button>
 
 			<div class="tutor-modal-body tutor-text-center">
 				<div class="tutor-mt-48">
-					<img class="tutor-d-inline-block" src="<?php echo esc_url( tutor()->url ); ?>assets/images/icon-trash.svg" />
+					<img class="tutor-d-inline-block" src="<?php echo esc_url( tutor()->url ); ?>assets/images/icon-trash.svg" alt="<?php esc_attr_e( 'Delete This?', 'tutor-pro' ); ?>" aria-hidden="true" />
 				</div>
 
-				<div class="tutor-fs-3 tutor-fw-medium tutor-color-black tutor-mb-12">
+				<div id="tutor-google-meet-confirmation-title" class="tutor-fs-3 tutor-fw-medium tutor-color-black tutor-mb-12">
 					<?php echo isset( $data['title'] ) ? esc_html( $data['title'] ) : esc_html__( 'Do You Want to Delete This?', 'tutor-pro' ); ?>
 				</div>
 

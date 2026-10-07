@@ -10,13 +10,13 @@
 
 namespace TutorPro\CourseBundle\CustomPosts;
 
-use TUTOR\Course;
-use TUTOR\Input;
-use Tutor\Models\CourseModel;
-use TUTOR_CERT\Certificate;
-use TutorPro\CourseBundle\CustomPosts\CourseBundle;
-use TutorPro\CourseBundle\MetaBoxes\BundlePrice;
 use WP_Post;
+use TUTOR\Input;
+use TUTOR\Course;
+use Tutor\Models\CourseModel;
+use Tutor\Helpers\QueryHelper;
+use TutorPro\CourseBundle\Models\BundleModel;
+use TutorPro\CourseBundle\CustomPosts\CourseBundle;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -50,6 +50,8 @@ class ManagePostMeta {
 	 *
 	 * @since 3.0.0
 	 *
+	 * @since 3.2.0 WC product will created only if bundle price exists
+	 *
 	 * Monetize by tutor support added
 	 *
 	 * @param int     $post_id post id.
@@ -58,49 +60,51 @@ class ManagePostMeta {
 	 * @return void
 	 */
 	public function update_bundle_meta( int $post_id, WP_Post $post ) {
-		$product_id = (int) get_post_meta( $post_id, CourseModel::WC_PRODUCT_META_KEY, true );
+		$product_id = (int) get_post_meta( $post_id, Course::COURSE_PRODUCT_ID_META, true );
 
-		$sale_price = Input::post( 'tutor-bundle-sale-price', 0, Input::TYPE_NUMERIC );
-		$reg_price  = BundlePrice::get_bundle_regular_price( $post_id );
+		$sale_price = Input::post( 'sale_price', BundleModel::get_bundle_sale_price( $post_id ), Input::TYPE_NUMERIC );
+		$reg_price  = BundleModel::get_bundle_regular_price( $post_id );
+		$price_type = $reg_price > 0 ? Course::PRICE_TYPE_PAID : Course::PRICE_TYPE_FREE;
 
-		// Settings price type paid since Bundle made with paid courses.
-		update_post_meta( $post->ID, Course::COURSE_PRICE_TYPE_META, Course::PRICE_TYPE_PAID );
+		update_post_meta( $post->ID, Course::COURSE_PRICE_TYPE_META, $price_type );
 
 		self::update_course_bundle_price( $post_id, $reg_price, $sale_price );
 
-		if ( 'wc' === tutor_utils()->get_option( 'monetize_by' ) ) {
+		// Ignore product creation if bundle is free.
+		if ( 'wc' === tutor_utils()->get_option( 'monetize_by' ) && ( $reg_price > 0 || $sale_price > 0 ) ) {
 			// Update product meta.
 			$product_id = Course::create_wc_product( $post->post_title, $reg_price, $sale_price, $product_id );
-			self::update_bundle_product_meta( $post_id, $product_id );
+
+			Course::sync_course_with_wc_product( $post_id, $product_id );
 		}
 
 		// Update ribbon type.
-		$ribbon_type = Input::post( 'tutor-bundle-ribbon-type', '', Input::TYPE_STRING );
+		$ribbon_type = Input::post( 'ribbon_type', self::get_ribbon_type( $post_id ), Input::TYPE_STRING );
 		self::update_bundle_ribbon_meta( $post_id, $ribbon_type );
 
 		// Update additional data.
 		$benefits = Input::post( 'course_benefits', '', Input::TYPE_TEXTAREA );
 		self::update_bundle_benefits( $post_id, $benefits );
 
-		// TODO Certificate will be used later on.
-		// if ( class_exists( Certificate::class ) ) {
-		// $certificate = new Certificate( true );
-		// $certificate->save_certificate_template_meta( $post_id );
-		// }
-	}
+		$author_id = get_post_field( 'post_author', $post_id );
 
-	/**
-	 * Update bundle product meta
-	 *
-	 * @since 2.2.0
-	 *
-	 * @param integer $post_id post id.
-	 * @param integer $product_id WC product id.
-	 *
-	 * @return mixed int|bool
-	 */
-	public static function update_bundle_product_meta( int $post_id, int $product_id ) {
-		return update_post_meta( $post_id, CourseModel::WC_PRODUCT_META_KEY, $product_id );
+		global $wpdb;
+		$attached = (int) QueryHelper::get_count(
+			$wpdb->usermeta,
+			array(
+				'user_id'    => $author_id,
+				'meta_key'   => '_tutor_instructor_course_id',
+				'meta_value' => $post_id,
+			),
+			array(),
+			'meta_value'
+		);
+
+		if ( ! $attached ) {
+			add_user_meta( $post->post_author, '_tutor_instructor_course_id', $post_id );
+		}
+
+		// TODO Certificate will be used later on.
 	}
 
 	/**
@@ -151,6 +155,8 @@ class ManagePostMeta {
 	 * @since 3.0.0
 	 *
 	 * @param int $post_id Bundle id.
+	 * @param int $reg_price the regular price.
+	 * @param int $sale_price the sale price.
 	 *
 	 * @return void
 	 */

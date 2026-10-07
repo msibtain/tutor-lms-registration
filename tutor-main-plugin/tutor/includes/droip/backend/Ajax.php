@@ -42,7 +42,10 @@ class Ajax {
 	 */
 	public function tutor_handle_api_calls() {
 		$request_method = Input::post( 'method' );
+		$is_user_logged_in = is_user_logged_in();
+		
 		tutor_utils()->checking_nonce();
+
 		if ( 'generate_html' === $request_method ) {
 
 			$course_id  = Input::post( 'course_id' );
@@ -65,11 +68,24 @@ class Ajax {
 			$collection_wrapper_html_string = HelperFunctions::get_html_using_preview_script( $params );
 			wp_send_json_success( $collection_wrapper_html_string );
 		}
-		if ( 'enroll_course' === $request_method ) {
+		if ( 'enroll_course' === $request_method && $is_user_logged_in ) {
 			$course_id = Input::post( 'course_id' );
+
+			$course = get_post( $course_id );
+
+			if ( ! $course || ! is_object( $course ) || $course->post_status !== 'publish' ) {
+				wp_send_json_error( 'Course not found!' );
+			}
+
+			if ( tutor_utils()->is_course_purchasable( $course_id ) ) {
+				wp_send_json_error( 'You cannot enroll in this course without purchasing it first.' );
+			}
+
 			$res       = tutor_utils()->do_enroll( $course_id );
+
 			wp_send_json_success( $res );
 		}
+
 		if ( 'add_to_cart_course' === $request_method ) {
 			$course_id = Input::post( 'course_id' );
 			$res       = tutor_add_to_cart( $course_id );
@@ -94,19 +110,31 @@ class Ajax {
 			wp_send_json_success($count);
 		}
 
-		if ( 'complete_course' === $request_method ) {
+		if ( 'complete_course' === $request_method && $is_user_logged_in ) {
 			$course_id = Input::post( 'course_id' );
-			$user_id   = get_current_user_id();
-			if ( ! $user_id ) {
-				wp_send_json_error( 'Please Sign-In' );
+			
+			$is_enrolled = tutor_utils()->is_enrolled($course_id);
+
+			if ( ! $is_enrolled ) {
+				wp_send_json_error( 'You are not allowed to complete this course.' );
 			}
+
+			$user_id   = get_current_user_id();
+
 			CourseModel::mark_course_as_completed( $course_id, $user_id );
 
 			wp_send_json_success( true );
 		}
 
-		if ( 'add_qna' === $request_method ) {
+		if ( 'add_qna' === $request_method && $is_user_logged_in ) {
 			$course_id         = Input::post( 'course_id' );
+
+			$is_enrolled = tutor_utils()->is_enrolled($course_id);
+
+			if ( ! $is_enrolled ) {
+				wp_send_json_error( 'You are not allowed to add Q&A to this course.' );
+			}
+			
 			$comment_parent_id = Input::post( 'comment_parent_id' );
 			$content           = Input::post( 'content' );
 

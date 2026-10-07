@@ -61,5 +61,5 @@ if ( ! function_exists( 'TUTOR_CA' ) ) {
 	}
 }
 
-require 'classes/init.php';
+require 'classes/Init.php';
 new TUTOR_CA\Init();

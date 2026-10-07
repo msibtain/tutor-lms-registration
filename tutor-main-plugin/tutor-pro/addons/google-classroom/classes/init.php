@@ -28,6 +28,7 @@ class Init {
 	private $gc_dashboard_slug            = 'tutor-google-classroom';
 	private $gc_code_privilege            = 'tutor_gc_classrooom_code_only_for_logged_in';
 	public static $google_callback_string = 'tutor-google-classroom-callback';
+	private $classroom_obj;
 	private $gc_metabox;
 	//phpcs:enable
 
@@ -47,14 +48,20 @@ class Init {
 			return;
 		}
 
-		$this->gc_metabox = array(
-			'tutor_gc_enable_classroom_stream' => __( 'Enable Google Classroom Stream', 'tutor-pro' ),
-			'tutor_gc_show_stream_files'       => __( 'Show Google Classroom Files in Stream', 'tutor-pro' ),
-			'tutor_gc_include_classroom_files' => __( 'Include Google Classroom Files in Resources', 'tutor-pro' ),
+		add_action(
+			'init',
+			function () {
+				$this->gc_metabox = array(
+					'tutor_gc_enable_classroom_stream' => __( 'Enable Google Classroom Stream', 'tutor-pro' ),
+					'tutor_gc_show_stream_files'       => __( 'Show Google Classroom Files in Stream', 'tutor-pro' ),
+					'tutor_gc_include_classroom_files' => __( 'Include Google Classroom Files in Resources', 'tutor-pro' ),
+				);
+			}
 		);
 
-		$this->gc_dashboard_url = get_admin_url( null, 'admin.php?page=' . $this->gc_dashboard_slug );
+		$this->gc_dashboard_url     = get_admin_url( null, 'admin.php?page=' . $this->gc_dashboard_slug );
 		spl_autoload_register( array( $this, 'loader' ) );
+		$this->classroom_obj = new Classroom( null, null, true );
 
 		$this->register_hooks();
 	}
@@ -90,7 +97,8 @@ class Init {
 	 */
 	private function register_hooks() {
 
-		add_action( 'tutor_admin_register', array( $this, 'add_sub_menu' ) );
+		add_filter( 'tutor_admin_menu', array( $this, 'register_menu' ) );
+
 		add_action( 'wp_loaded', array( $this, 'save_token' ) );
 		add_action( 'wp_loaded', array( $this, 'reset_tutor_student_password' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'load_admin_scripts' ) );
@@ -109,7 +117,6 @@ class Init {
 		add_filter( 'tutor_course/single/nav_items', array( $this, 'stream_tab' ), 10, 2 );
 		add_filter( 'tutor_course/single/start/button', array( $this, 'add_start_course_button' ), 10, 2 );
 		add_action( 'tutor_global/after/attachments', array( $this, 'load_gc_attachments' ), 10, 3 );
-		add_action( 'tutor/dashboard_course_builder_form_field_after', array( $this, 'course_connection_metabox_frontend' ) );
 
 		add_shortcode( 'tutor_gc_classes', array( $this, 'tutor_gc_classes' ) );
 	}
@@ -132,9 +139,20 @@ class Init {
 	/**
 	 * Frontend scripts
 	 *
+	 * Enqueue only on:
+	 * - Single Google Classroom course pages (stream tab).
+	 * - The student password-reset URL.
+	 *
 	 * @return void
 	 */
 	public function load_frontend_script() {
+		$is_password_reset_page  = strpos( $_SERVER['REQUEST_URI'], Classroom::$password_reset_base ) !== false; //phpcs:ignore
+		$is_gc_course_page      = is_single_course() && $this->classroom_obj->is_google_class( get_the_ID() );
+
+		if ( ! $is_password_reset_page && ! $is_gc_course_page ) {
+			return;
+		}
+
 		wp_enqueue_style( 'tutor-gc-frontend-style', TUTOR_GC()->url . 'assets/css/classroom-frontend.css', array(), TUTOR_PRO_VERSION );
 		wp_enqueue_script( 'tutor-gc-frontend-js', TUTOR_GC()->url . 'assets/js/classroom-frontend.js', array( 'jquery' ), TUTOR_PRO_VERSION, true );
 	}
@@ -154,7 +172,7 @@ class Init {
 			return;
 		}
 
-		if ( $post && ( new Classroom( null, null, true ) )->is_google_class( $post->ID ) ) {
+		if ( $post && $this->classroom_obj->is_google_class( $post->ID ) ) {
 			tutor_meta_box_wrapper( 'tutor-gc-course-connection-side', __( 'Connect Tutor Course', 'tutor-pro' ), array( $this, 'course_connection_metabox' ), $course_post_type, 'side', 'default', 'tutor-admin-post-meta' );
 		}
 	}
@@ -203,48 +221,25 @@ class Init {
 	}
 
 	/**
-	 * Course connection metabox frontend
+	 * Add sub-menu.
 	 *
-	 * @param object $post post.
+	 * @since 3.8.0
 	 *
-	 * @return void
+	 * @param array $menu menu.
+	 *
+	 * @return array
 	 */
-	public function course_connection_metabox_frontend( $post ) {
+	public function register_menu( $menu ) {
+		$menu['group_three']['google_classroom'] = array(
+			'parent_slug' => 'tutor',
+			'page_title'  => __( 'Google Classroom', 'tutor-pro' ),
+			'menu_title'  => __( 'Google Classroom', 'tutor-pro' ),
+			'capability'  => 'manage_tutor_instructor',
+			'menu_slug'   => $this->gc_dashboard_slug,
+			'callback'    => array( $this, 'admin_page_content' ),
+		);
 
-		$post_id = is_object( $post ) ? ( $post->ID ? $post->ID : 0 ) : 0;
-
-		if ( ! ( new Classroom( null, null, true ) )->is_google_class( $post_id ) ) {
-			// Make sure it is imported google class.
-			return;
-		}
-		?>
-			<div class="tutor-course-builder-section tutor-course-builder-info">
-				<div class="tutor-course-builder-section-title">
-					<span class="tutor-fs-5 tutor-fw-bold tutor-color-secondary">
-						<i class="tutor-icon-down" area-hidden="true"></i>
-						<span>
-							<?php esc_html_e( 'Connect Tutor Course', 'tutor-pro' ); ?>
-						</span>
-					</span>
-				</div>
-				<div class="tutor-course-builder-section-content">
-					<div class="tutor-frontend-builder-item-scope">
-						<div class="tutor-form-group">
-							<?php $this->course_connection_metabox( $post ); ?>
-						</div>
-					</div>
-				</div>
-			</div>
-		<?php
-	}
-
-	/**
-	 * Add sub-menu
-	 *
-	 * @return void
-	 */
-	public function add_sub_menu() {
-		add_submenu_page( 'tutor', __( 'Google Classroom', 'tutor-pro' ), __( 'Google Classroom', 'tutor-pro' ), 'manage_tutor_instructor', $this->gc_dashboard_slug, array( $this, 'admin_page_content' ) );
+		return $menu;
 	}
 
 	/**
@@ -276,7 +271,7 @@ class Init {
 	 * @return array
 	 */
 	public function stream_tab( $nav_menus, $course_id ) {
-		if ( ( new Classroom( null, null, true ) )->is_google_class( $course_id ) && $this->is_stream_enabled( $course_id ) ) {
+		if ( $this->classroom_obj->is_google_class( $course_id ) && $this->is_stream_enabled( $course_id ) ) {
 			$nav_menus[ $this->gc_stream_slug ] = array(
 				'title'             => __( 'Stream', 'tutor-pro' ),
 				'method'            => array( $this, 'stream_tab_content' ),
@@ -380,7 +375,7 @@ class Init {
 	 * @return mixed
 	 */
 	public function add_start_course_button( $content, $course_id ) {
-		$classroom_url = ( new Classroom( null, null, true ) )->is_google_class( $course_id, true );
+		$classroom_url = $this->classroom_obj->is_google_class( $course_id, true );
 
 		if ( $classroom_url ) {
 			ob_start();
@@ -487,7 +482,7 @@ class Init {
 		tutor_utils()->checking_nonce();
 
 		$action   = Input::post( 'action_name' );
-		$local_id = Input::post( 'post_id', '' );
+		$local_id = (int) Input::post( 'post_id', 0 );
 
 		if ( ! User::has_any_role( array( User::ADMIN, User::INSTRUCTOR ) ) ) {
 			wp_die( esc_html( tutor_utils()->error_message() ) );
@@ -504,8 +499,22 @@ class Init {
 		switch ( $action ) {
 			case 'publish':
 				wp_publish_post( $local_id );
+				$remote_id = get_post_meta( $local_id, $this->classroom_obj->classroom_key, true );
+				$user_ids  = get_users(
+					array(
+						'meta_key'   => $this->classroom_obj->gc_user_identifier,
+						'meta_value' => $remote_id,
+						'fields'     => 'ID',
+					)
+				);
+				if ( tutor_utils()->count( $user_ids ) ) {
+					foreach ( $user_ids as $id ) {
+						tutor_utils()->do_enroll( $local_id, 0, $id );
+					}
+				}
 				break;
 			case 'trash':
+				remove_all_actions( 'trashed_post' ); // trying to redirect and throwing error.
 				wp_trash_post( $local_id );
 				break;
 			case 'delete':
@@ -528,7 +537,7 @@ class Init {
 			'status_text'  => ucfirst( $status ),
 		);
 
-		exit( json_encode( $response ) );
+		wp_send_json( $response );
 	}
 
 	/**
@@ -597,7 +606,11 @@ class Init {
 		$token    = Input::post( 'token', '' );
 		$password = Input::post( 'password', '' );
 
-		( new Classroom() )->set_student_password( $token, $password );
+		$response = $this->classroom_obj->set_student_password( $token, $password );
+
+		if ( is_wp_error( $response ) ) {
+			wp_send_json_error( $response->get_error_message( 'reset_token_error' ), 400 );
+		}
 
 		exit;
 	}

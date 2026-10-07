@@ -8,6 +8,9 @@
  * @since 1.0.0
  */
 
+use Tutor\Models\QuizModel;
+use TUTOR_PRO\ProgressReset;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -61,11 +64,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-mortarboard-o" area-hidden="true"></span>
+							<span class="tutor-icon-mortarboard-o" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
-							<div class="tutor-fs-4 tutor-fw-bold tutor-color-black"><?php echo esc_html( $enrolled_course->found_posts ?? 0 ); ?></div>
+							<div class="tutor-fs-4 tutor-fw-bold tutor-color-black"><?php echo esc_html( count( $enrolled_course ) ?? 0 ); ?></div>
 							<div class="tutor-fs-7 tutor-color-secondary"><?php esc_html_e( 'Enrolled Courses', 'tutor-pro' ); ?></div>
 						</div>
 					</div>
@@ -76,7 +79,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-trophy" area-hidden="true"></span>
+							<span class="tutor-icon-trophy" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
@@ -96,12 +99,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-flag" area-hidden="true"></span>
+							<span class="tutor-icon-flag" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
 							<div class="tutor-fs-4 tutor-fw-bold tutor-color-black">
-								<?php echo esc_html( ( ( $enrolled_course->found_posts ?? 0 ) - count( $completed_course ) ) ); ?>
+								<?php echo esc_html( ( ( count( $enrolled_course ) ?? 0 ) - count( $completed_course ) ) ); ?>
 							</div>
 							<div class="tutor-fs-7 tutor-color-secondary"><?php esc_html_e( 'In Progress Courses', 'tutor-pro' ); ?></div>
 						</div>
@@ -113,7 +116,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-star-bold" area-hidden="true"></span>
+							<span class="tutor-icon-star-bold" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
@@ -133,7 +136,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-document-text" area-hidden="true"></span>
+							<span class="tutor-icon-document-text" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
@@ -152,12 +155,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-quiz" area-hidden="true"></span>
+							<span class="tutor-icon-quiz" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
 							<div class="tutor-fs-4 tutor-fw-bold tutor-color-black">
-								<?php echo esc_html( tutor_utils()->get_total_quiz_attempts( $user_info->user_email ) ); ?>
+								<?php echo esc_html( QuizModel::get_total_quiz_attempts( $user_info->user_email ) ); ?>
 							</div>
 							<div class="tutor-fs-7 tutor-color-secondary"><?php esc_html_e( 'Quizzes Taken', 'tutor-pro' ); ?></div>
 						</div>
@@ -169,7 +172,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-assignment" area-hidden="true"></span>
+							<span class="tutor-icon-assignment" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
@@ -188,7 +191,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div class="tutor-card tutor-card-secondary tutor-p-24">
 					<div class="tutor-d-flex">
 						<div class="tutor-round-box">
-							<span class="tutor-icon-question" area-hidden="true"></span>
+							<span class="tutor-icon-question" aria-hidden="true"></span>
 						</div>
 
 						<div class="tutor-ml-20">
@@ -209,7 +212,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		<div class="tutor-fs-5 tutor-fw-medium tutor-color-black tutor-mb-24">
 			<?php esc_html_e( 'Course', 'tutor-pro' ); ?>
 		</div>
-		<?php if ( isset( $enrolled_course->posts ) && is_array( $enrolled_course->posts ) && count( $enrolled_course->posts ) ) : ?>
+		<?php if ( tutor_utils()->count( $enrolled_course ) ) : ?>
 			<div class="tutor-course-details-student-list-table">
 				<div class="tutor-table-responsive">
 					<table class="tutor-table tutor-table-data-td-target">
@@ -244,7 +247,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 						<tbody>
 							<?php
-							foreach ( $enrolled_course->posts as $course ) :
+							foreach ( $enrolled_course as $course ) :
 								$lessons     = tutor_utils()->get_course_content_list( tutor()->lesson_post_type, tutor()->course_post_type, $course->ID );
 								$assignments = tutor_utils()->get_course_content_list( 'tutor_assignments', tutor()->course_post_type, $course->ID );
 								$quizzes     = tutor_utils()->get_course_content_list( 'tutor_quiz', tutor()->course_post_type, $course->ID );
@@ -281,15 +284,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 									<td>
 										<div class="tutor-d-flex tutor-align-center">
 											<div class="tutor-progress-bar" style="min-width: 50px; --tutor-progress-value:<?php echo esc_attr( $course_progress ); ?>%;">
-												<div class="tutor-progress-value" area-hidden="true"></div>
+												<div class="tutor-progress-value" aria-hidden="true"></div>
 											</div>
 											<div class="tutor-fs-7 tutor-color-muted tutor-ml-12">
 												<?php echo esc_attr( $course_progress ); ?>%
 											</div>
 										</div>
 									</td>
-									<td class="tutor-text-right expand-btn" data-th="Collapse">
-										<button class="tutor-iconic-btn tutor-icon-angle-down tutor-fs-6 tutor-color-primary has-data-td-target" data-td-target="<?php echo esc_attr( "tutor-student-course-$course->ID" ); ?>"></button>
+									<td class="tutor-text-right" data-th="Collapse">
+										<div class="tutor-d-flex tutor-align-center tutor-justify-end tutor-gap-1">
+											<?php do_action( 'tutor_enrollment_actions', $enrolled_data->ID, $course->ID, $student_id, $course_progress, 'backend' ); ?>
+											<div class="expand-btn">
+												<button class="tutor-iconic-btn tutor-icon-angle-down tutor-fs-6 tutor-color-primary has-data-td-target" data-td-target="<?php echo esc_attr( "tutor-student-course-$course->ID" ); ?>"></button>
+											</div>
+										</div>
 									</td>
 								</tr>
 								<tr>

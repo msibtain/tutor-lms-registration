@@ -13,7 +13,6 @@ use TutorPro\CourseBundle\Models\BundleModel;
 
 $bundle_id = isset( $data['bundle_id'] ) ? $data['bundle_id'] : 0;
 $authors   = BundleModel::get_bundle_course_authors( $bundle_id ?? 0 );
-
 ?>
 <div class="tutor-courses-instructors tutor-courses-instructors tutor-d-flex tutor-flex-column" style="gap: 24px">
 	<h2 class="tutor-fs-5 tutor-fw-bold tutor-color-black tutor-mb-12">
@@ -28,7 +27,7 @@ $authors   = BundleModel::get_bundle_course_authors( $bundle_id ?? 0 );
 				<div class="tutor-d-flex tutor-mr-16">
 					<div class="tutor-avatar tutor-avatar-md">
 						<div class="tutor-ratio tutor-ratio-1x1">
-							<img src="<?php echo esc_url( get_avatar_url( $author->user_id ) ); ?>" alt="<?php echo esc_attr( $author->display_name ); ?>"> 
+							<?php tutor_utils()->get_tutor_avatar( $author->user_id, 'sm', true ); ?>
 						</div>
 					</div>			
 				</div>

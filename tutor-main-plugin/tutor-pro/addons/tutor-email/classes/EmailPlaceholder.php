@@ -35,6 +35,7 @@ class EmailPlaceholder {
 			'site_name'              => array(
 				'placeholder' => '{site_name}',
 				'label'       => __( 'Site Name', 'tutor-pro' ),
+				'test_data'   => get_bloginfo( 'sitename' ),
 			),
 			'site_url'               => array(
 				'placeholder' => '{site_url}',
@@ -358,7 +359,26 @@ class EmailPlaceholder {
 				'label'       => __( 'Withdraw Time', 'tutor-pro' ),
 				'test_data'   => $date_time,
 			),
-
+			'submission_date'        => array(
+				'placeholder' => '{submission_date}',
+				'label'       => __( 'Submission Date', 'tutor-pro' ),
+				'test_data'   => gmdate( get_option( 'date_format' ) ),
+			),
+			'gift_message'           => array(
+				'placeholder' => '{gift_message}',
+				'label'       => __( 'Gift Message', 'tutor-pro' ),
+				'test_data'   => __( 'You’ve successfully gifted Microsoft UX Design Professional Certificate to Jon Smith.', 'tutor-pro' ),
+			),
+			'delivery_date'          => array(
+				'placeholder' => '{delivery_date}',
+				'label'       => __( 'Delivery date', 'tutor-pro' ),
+				'test_data'   => gmdate( get_option( 'date_format' ) ),
+			),
+			'reset_password_url'     => array(
+				'placeholder' => '{reset_password_url}',
+				'label'       => __( 'Reset Password URL', 'tutor-pro' ),
+				'test_data'   => '#',
+			),
 		);
 		return apply_filters( 'tutor_pro_email_placeholders', $arr );
 	}

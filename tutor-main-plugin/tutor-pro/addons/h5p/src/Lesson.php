@@ -37,6 +37,28 @@ class Lesson extends Tutor_Base {
 		add_action( 'wp_ajax_save_h5p_lesson_xAPI_statement', array( $this, 'save_h5p_lesson_xAPI_statement' ) );
 		add_filter( 'tutor_validate_lesson_complete', array( $this, 'lesson_completion_restriction' ), 10, 3 );
 		add_action( 'wp_ajax_set_h5p_lesson_finished', array( $this, 'set_h5p_lesson_finished' ) );
+		add_action( 'tutor_before_delete_course_content', array( $this, 'delete_h5p_lesson_statements_by_id' ), 10, 2 );
+		add_action( 'tutor_lesson_before_the_content', array( $this, 'set_h5p_lesson' ), 10, 2 );
+	}
+
+	/**
+	 * Set H5P lesson elements for tracking h5p lesson data.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param \WP_Post $post the post object.
+	 * @param integer  $course_id the course id.
+	 * @return void
+	 */
+	public function set_h5p_lesson( \WP_Post $post, int $course_id ) {
+		$shortcodes = Utils::get_h5p_shortcodes( $post->post_content );
+		if ( count( $shortcodes ) > 0 ) {
+			?>
+			<div class="tutor-fs-6 tutor-color-secondary tutor-lesson-wrapper tutor-spotlight-h5p-lesson-content" data-lesson-id="<?php echo esc_attr( $post->ID ); ?>" data-course-id="<?php echo esc_attr( $course_id ); ?>" data-topic-id="<?php echo esc_attr( $post->post_parent ); ?>">
+				<input type="hidden" id="complete_lesson_enabled" value="<?php echo esc_attr( tutor_utils()->get_option( 'disable_complete_lesson_button' ) ); ?>" />
+			</div>					
+			<?php
+		}
 	}
 
 	/**
@@ -249,7 +271,7 @@ class Lesson extends Tutor_Base {
 	 * @param int $lesson_id the lesson id.
 	 * @return void
 	 */
-	public static function delete_h5p_lesson_statements_by_id( $course_id, $lesson_id ) {
+	public function delete_h5p_lesson_statements_by_id( $course_id, $lesson_id ) {
 		global $wpdb;
 
 		$course_id = (int) filter_var( $course_id, FILTER_SANITIZE_NUMBER_INT );
@@ -277,6 +299,7 @@ class Lesson extends Tutor_Base {
 	 *
 	 * @param string $search search filter to query with.
 	 * @param string $date date filter to query with.
+	 * @param string $filter the main filter for querying.
 	 *
 	 * @return int
 	 */
@@ -332,6 +355,8 @@ class Lesson extends Tutor_Base {
 	 * @param string $order the sorting order.
 	 * @param string $search the search value.
 	 * @param string $date the date value to search for.
+	 * @param string $filter the main filter to query for.
+	 *
 	 * @return array
 	 */
 	public static function get_h5p_lesson_statements( $limit = '', $offset = '', $order = 'DESC', $search = '', $date = '', $filter = '' ) {

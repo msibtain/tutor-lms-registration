@@ -19,9 +19,9 @@ use TutorPro\CourseBundle\Frontend\BundleBuilder;
 use TutorPro\CourseBundle\Frontend\BundleDetails;
 use TutorPro\CourseBundle\Frontend\Dashboard;
 use TutorPro\CourseBundle\Frontend\DashboardMenu;
+use TutorPro\CourseBundle\Frontend\Enrollments;
 use TutorPro\CourseBundle\Frontend\MyBundleList;
 use TutorPro\CourseBundle\Integrations\WooCommerce;
-use TutorPro\CourseBundle\MetaBoxes\RegisterMetaBoxes;
 
 /**
  * Init Class
@@ -50,8 +50,9 @@ class Init {
 		}
 
 		// Return if has monetization requirement.
-		$has_requirement = self::has_required_monetization();
-		if ( $has_requirement['has'] ) {
+		$active_monetization    = tutor_utils()->get_option( 'monetize_by', false );
+		$required_monetizations = array( 'wc', 'tutor', 'free' );
+		if ( ! in_array( $active_monetization, $required_monetizations ) ) {
 			return;
 		}
 
@@ -61,9 +62,7 @@ class Init {
 		new Assets();
 		new Menu();
 		new Dashboard();
-		new DashboardMenu();
 		new RegisterPosts();
-		new RegisterMetaBoxes();
 		new BundleList();
 		new MyBundleList();
 		new Ajax();
@@ -71,6 +70,8 @@ class Init {
 		new BundleArchive();
 		new BundleDetails();
 		new BundleBuilder();
+		new Enrollments();
+		BundleEnrollmentBatchProcessor::instance();
 
 		// Integrations.
 		new WooCommerce();
@@ -126,7 +127,7 @@ class Init {
 		$monetization = tutor_utils()->get_option( 'monetize_by', false );
 
 		return array(
-			'has'     => 'wc' === $monetization || tutor_utils()->is_monetize_by_tutor() ? false : true,
+			'has'     => 'wc' === $monetization || tutor_utils()->is_monetize_by_tutor() || 'free' === $monetization ? false : true,
 			'title'   => __( 'Requires WooCommerce/Native Monetization to be enabled.', 'tutor-pro' ),
 			'message' => __( 'Choose WooCommerce/Native Payment from the eCommerce engine option in the settings', 'tutor-pro' ),
 		);
@@ -140,7 +141,5 @@ class Init {
 	 * @return void
 	 */
 	private function include_files() {
-
 	}
-
 }

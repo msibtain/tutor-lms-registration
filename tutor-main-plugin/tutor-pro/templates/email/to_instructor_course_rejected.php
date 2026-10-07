@@ -14,7 +14,7 @@
 
 <head>
 	<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-	<?php require TUTOR_EMAIL()->path . 'views/email_styles.php'; ?>
+	<?php require TUTOR()->path . 'templates/email/email_styles.php'; ?>
 </head>
 
 <body>
@@ -34,7 +34,7 @@
 				</table>
 
 				<div class="tutor-email-buttons">
-					<a target="_blank" class="tutor-email-button" href="{site_url}"><?php esc_html_e( 'Contact Admin', 'tutor-pro' ); ?></a>
+					<a target="_blank" class="tutor-email-button" href="{button_link}"><?php esc_html_e( 'Contact Admin', 'tutor-pro' ); ?></a>
 				</div>
 
 			</div>

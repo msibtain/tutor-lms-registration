@@ -46,7 +46,7 @@ class TopicsEvent {
 		if ( $google_client->is_app_permitted() ) {
 			?>
 			<button class="tutor-btn tutor-btn-outline-primary tutor-btn-sm" data-tutor-modal-target="tutor-google-meet-topic-modal-<?php echo esc_attr( $topic_id ); ?>">
-				<i class="tutor-icon-brand-google-meet tutor-mr-8" area-hidden="true"></i>
+				<i class="tutor-icon-brand-google-meet tutor-mr-8" aria-hidden="true"></i>
 				<?php esc_html_e( 'Meet Live Lesson', 'tutor-pro' ); ?>
 			</button>
 			<?php

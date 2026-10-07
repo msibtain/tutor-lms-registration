@@ -13,6 +13,7 @@ namespace TutorPro\H5P;
 
 use TUTOR\Addons;
 use TUTOR\Input;
+use TUTOR\Quiz as TUTORQuiz;
 use TUTOR\Singleton;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -36,6 +37,9 @@ final class H5P extends Singleton {
 		$addon_config = tutor_utils()->get_addon_config( Utils::addon_config()->basename );
 		$is_enable    = (bool) tutor_utils()->array_get( 'is_enable', $addon_config );
 
+		add_filter( 'tutor_filter_course_content', array( $this, 'filter_h5p_quiz_content' ), 10, 1 );
+		add_filter( 'tutor_filter_lesson_sidebar', array( $this, 'filter_h5p_sidebar_contents' ), 10, 2 );
+		add_filter( 'tutor_filter_attempt_answers', array( $this, 'filter_h5p_attempt_answers' ), 10, 1 );
 		/**
 		 * If h5p plugin is not activated or does not exist.
 		 * Disable the h5p addon.
@@ -58,26 +62,126 @@ final class H5P extends Singleton {
 		new Settings();
 
 		/**
-		 * Hook for addon enable disable
-		 */
-		add_action( 'tutor_addon_after_disable_' . Utils::addon_config()->basename, array( $this, 'remove_h5p' ) );
-
-		/**
 		 * Register H5P admin menu
 		 */
-		add_action( 'tutor_admin_register', array( $this, 'tutor_h5p_register_menu' ) );
+		add_filter( 'tutor_admin_menu', array( $this, 'register_menu' ) );
+	}
+
+	/**
+	 * Filter H5P quiz attempt answers.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param array $answers the attempt answers to filter.
+	 * @return array
+	 */
+	public function filter_h5p_attempt_answers( $answers ) {
+		if ( ! self::is_enabled() ) {
+			$answers = array_filter(
+				$answers,
+				function ( $answer ) {
+					return 'h5p' !== $answer->question_type;
+				}
+			);
+		}
+		return $answers;
+	}
+
+	/**
+	 * Filter lesson sidebar for H5P content.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param object $query the content query object.
+	 * @param int    $topic_id the topic id.
+	 *
+	 * @return \WP_Query
+	 */
+	public function filter_h5p_sidebar_contents( $query, $topic_id ) {
+		if ( ! self::is_enabled() ) {
+			$topics_id        = tutor_utils()->get_post_id( $topic_id );
+			$lesson_post_type = tutor()->lesson_post_type;
+			$post_type        = array_unique( apply_filters( 'tutor_course_contents_post_types', array( $lesson_post_type, 'tutor_quiz' ) ) );
+
+			$args = array(
+				'post_type'      => $post_type,
+				'post_parent'    => $topics_id,
+				'posts_per_page' => -1,
+				'orderby'        => 'menu_order',
+				'order'          => 'ASC',
+				'meta_query'     => array(
+					'relation' => 'OR',
+					array(
+						'key'     => TUTORQuiz::META_QUIZ_OPTION,
+						'value'   => 's:9:"quiz_type";s:14:"tutor_h5p_quiz";',
+						'compare' => 'NOT LIKE',
+					),
+					array(
+						'key'     => TUTORQuiz::META_QUIZ_OPTION,
+						'compare' => 'NOT EXISTS',
+					),
+
+				),
+			);
+
+			$query = new \WP_Query( $args );
+		}
+
+		return $query;
+	}
+
+	/**
+	 * Filter H5P quiz contents.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @param array $current_topic the topic array.
+	 * @return array
+	 */
+	public function filter_h5p_quiz_content( $current_topic ) {
+		$contents = $current_topic['contents'];
+		if ( is_array( $contents ) && count( $contents ) ) {
+			$topic_contents = array();
+			foreach ( $contents as $post ) {
+				$quiz_option = get_post_meta( $post->ID, TUTORQuiz::META_QUIZ_OPTION, true );
+				if ( isset( $quiz_option['quiz_type'] ) && 'tutor_h5p_quiz' === $quiz_option['quiz_type'] ) {
+					$post->quiz_type = 'tutor_h5p_quiz';
+
+					if ( ! self::is_enabled() ) {
+						continue;
+					}
+				}
+				array_push( $topic_contents, $post );
+			}
+
+			if ( count( $topic_contents ) ) {
+				$current_topic['contents'] = $topic_contents;
+			}
+		}
+		return $current_topic;
 	}
 
 
 	/**
-	 * Register tutor H5P admin menu.
+	 * Add sub-menu.
 	 *
-	 * @since 3.0.0
+	 * @since 3.8.0
 	 *
-	 * @return void
+	 * @param array $menu menu.
+	 *
+	 * @return array
 	 */
-	public function tutor_h5p_register_menu() {
-		add_submenu_page( 'tutor', __( 'H5P', 'tutor-pro' ), __( 'H5P', 'tutor-pro' ), 'manage_tutor_instructor', 'tutor_h5p', array( $this, 'h5p_analytics_menu' ) );
+	public function register_menu( $menu ) {
+		$menu['group_three']['h5p'] = array(
+			'parent_slug' => 'tutor',
+			'page_title'  => __( 'H5P', 'tutor-pro' ),
+			'menu_title'  => __( 'H5P', 'tutor-pro' ),
+			'capability'  => 'manage_tutor_instructor',
+			'menu_slug'   => 'tutor_h5p',
+			'callback'    => array( $this, 'h5p_analytics_menu' ),
+		);
+
+		return $menu;
 	}
 
 	/**
@@ -169,21 +273,5 @@ final class H5P extends Singleton {
 		$has_h5p        = tutor_utils()->is_plugin_active( 'h5p/h5p.php' );
 		$plugin_enabled = $is_enabled && $has_h5p;
 		return $plugin_enabled;
-	}
-
-
-	/**
-	 * Handle tutor H5P addon disable.
-	 *
-	 * @since 3.0.0
-	 *
-	 * @return void
-	 */
-	public function remove_h5p() {
-		global $wpdb;
-
-		$wpdb->query(
-			"DROP TABLE IF EXISTS {$wpdb->prefix}tutor_h5p_quiz_result, {$wpdb->prefix}tutor_h5p_quiz_statement, {$wpdb->prefix}tutor_h5p_lesson_statement, {$wpdb->prefix}tutor_h5p_statement "
-		);
 	}
 }

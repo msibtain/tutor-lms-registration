@@ -10,60 +10,37 @@
 
 namespace TutorPro\Subscription;
 
+use TUTOR_PRO\AddonBaseHelper;
+
 /**
  * Utils Class.
  *
  * @since 3.0.0
  */
-class Utils {
+class Utils extends AddonBaseHelper {
 	/**
-	 * Get view path.
+	 * Addon directory
 	 *
-	 * @since 3.0.0
-	 *
-	 * @param string $path path.
-	 *
-	 * @return string
+	 * @var string
 	 */
-	public static function view_path( $path = null ) {
-		$final_path = TUTOR_SUBSCRIPTION_DIR . 'views';
-		if ( $path ) {
-			$final_path .= '/' . $path;
-		}
-		return $final_path;
-	}
+	protected static $addon_dir = TUTOR_SUBSCRIPTION_DIR;
 
 	/**
-	 * Get template path.
+	 * Addon file
 	 *
-	 * @since 3.0.0
-	 *
-	 * @param string $path path.
-	 *
-	 * @return string
+	 * @var string
 	 */
-	public static function template_path( $path = null ) {
-		$final_path = TUTOR_SUBSCRIPTION_DIR . 'templates';
-		if ( $path ) {
-			$final_path .= '/' . $path;
-		}
-		return $final_path;
-	}
+	protected static $addon_file = TUTOR_SUBSCRIPTION_FILE;
 
 	/**
-	 * Get asset URL.
+	 * Check if the current page is pricing page.
 	 *
-	 * @since 3.0.0
+	 * @since 4.0.0
 	 *
-	 * @param string $url url of assets.
-	 *
-	 * @return string
+	 * @return bool
 	 */
-	public static function asset_url( $url = null ) {
-		$final_url = plugin_dir_url( TUTOR_SUBSCRIPTION_FILE ) . 'assets';
-		if ( $url ) {
-			$final_url .= '/' . $url;
-		}
-		return $final_url;
+	public static function is_pricing_page() {
+		global $post;
+		return is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, Shortcode::MEMBERSHIP_PRICING );
 	}
 }
